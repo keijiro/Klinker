@@ -58,14 +58,15 @@ namespace klinker
             AssertSuccess(input_->SetCallback(this));
 
             // Enable the video input with a default mode.
+            // We assume no one uses NTSC 23.98 and expect that
+            // it'll be changed in the initial frame. #bad_code
             AssertSuccess(input_->EnableVideoInput(
-                bmdModeHD720p60, bmdFormat8BitYUV,
+                bmdModeNTSC2398, bmdFormat8BitYUV,
                 bmdVideoInputEnableFormatDetection
             ));
 
             // Start an input stream.
             AssertSuccess(input_->StartStreams());
-
         }
 
         void StopReceiving()
@@ -166,6 +167,10 @@ namespace klinker
             BMDDetectedVideoInputFormatFlags detectedSignalFlags
         ) override
         {
+            // Determine the frame dimensions.
+            frameWidth_ = newDisplayMode->GetWidth();
+            frameHeight_ = newDisplayMode->GetHeight();
+
             // Change the video input format as notified.
             input_->PauseStreams();
             input_->EnableVideoInput(
@@ -175,6 +180,7 @@ namespace klinker
             );
             input_->FlushStreams();
             input_->StartStreams();
+
             return S_OK;
         }
 
@@ -186,10 +192,6 @@ namespace klinker
             if (videoFrame != nullptr)
             {
                 std::lock_guard<std::mutex> lock(frameLock_);
-
-                // Retrieve the frame information.
-                frameWidth_ = videoFrame->GetWidth();
-                frameHeight_ = videoFrame->GetHeight();
 
                 // Resize the buffer to store the arrived frame.
                 auto size = videoFrame->GetRowBytes() * frameHeight_;
