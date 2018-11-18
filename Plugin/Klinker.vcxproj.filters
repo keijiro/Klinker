@@ -33,13 +33,7 @@
     <ClInclude Include="Unity\IUnityRenderingExtensions.h">
       <Filter>Header Files\Unity</Filter>
     </ClInclude>
-    <ClInclude Include="MemoryBackedFrame.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="Receiver.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Manager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

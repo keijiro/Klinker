@@ -157,8 +157,6 @@
   <ItemGroup>
     <ClInclude Include="Common.h" />
     <ClInclude Include="DeckLinkAPI_h.h" />
-    <ClInclude Include="Manager.h" />
-    <ClInclude Include="MemoryBackedFrame.h" />
     <ClInclude Include="Receiver.h" />
     <ClInclude Include="Unity\IUnityGraphics.h" />
     <ClInclude Include="Unity\IUnityInterface.h" />

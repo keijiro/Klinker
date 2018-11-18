@@ -1,74 +1,125 @@
 #pragma once
 
 #include "Common.h"
-#include "MemoryBackedFrame.h"
 #include <atomic>
-#include <condition_variable>
 #include <mutex>
-#include <queue>
+#include <unordered_map>
+#include <vector>
 
 namespace klinker
 {
-    //
-    // Frame receiver class with frame input queue
-    //
     class Receiver final : public IDeckLinkInputCallback
     {
     public:
 
-        Receiver(IDeckLinkInput* input)
-            : refCount_(1), input_(input), disabled_(false)
+        //
+        // Constructor/destructor
+        //
+
+        Receiver()
+            : refCount_(1), id_(GenerateID()), frameWidth_(0), frameHeight_(0)
         {
-            AssertSuccess(CoCreateInstance(
-                CLSID_CDeckLinkVideoConversion, nullptr, CLSCTX_ALL,
-                IID_IDeckLinkVideoConversion, reinterpret_cast<void**>(&converter_)
-            ));
+            // Register itself to the id-instance map.
+            GetInstanceMap()[id_] = this;
         }
 
         ~Receiver()
         {
-            while (!frameQueue_.empty())
-            {
-                frameQueue_.front()->Release();
-                frameQueue_.pop();
-            }
-            converter_->Release();
+            // Unregister itself from the id-instance map.
+            GetInstanceMap().erase(id_);
+        }
+
+        //
+        // Controller methods
+        //
+
+        void StartReceiving()
+        {
+            // Retrieve the first DeckLink device using an iterator.
+            IDeckLinkIterator* iterator;
+            AssertSuccess(CoCreateInstance(
+                CLSID_CDeckLinkIterator, nullptr, CLSCTX_ALL,
+                IID_IDeckLinkIterator, reinterpret_cast<void**>(&iterator)
+            ));
+
+            IDeckLink* device;
+            AssertSuccess(iterator->Next(&device));
+
+            // Retrieve an input interface from the device.
+            AssertSuccess(device->QueryInterface(
+                IID_IDeckLinkInput, reinterpret_cast<void**>(&input_)
+            ));
+
+            // These references are no longer needed.
+            iterator->Release();
+            device->Release();
+
+            // Register itself as a callback.
+            AssertSuccess(input_->SetCallback(this));
+
+            // Enable the video input with a default mode.
+            AssertSuccess(input_->EnableVideoInput(
+                bmdModeHD720p60, bmdFormat8BitYUV,
+                bmdVideoInputEnableFormatDetection
+            ));
+
+            // Start an input stream.
+            AssertSuccess(input_->StartStreams());
+
         }
 
         void StopReceiving()
         {
-            std::lock_guard<std::mutex> lock(mutex_);
-            disabled_ = true;
-            semaphore_.notify_all(); // Resume paused threads.
+            // Stop, disable and release the input stream.
+            input_->StopStreams();
+            input_->DisableVideoInput();
+            input_->SetCallback(nullptr);
+            input_->Release();
         }
 
-        MemoryBackedFrame* PopFrameSync()
+        //
+        // Accessor functions
+        //
+
+        unsigned int GetID() const
         {
-            if (disabled_) return nullptr;
+            return id_;
+        }
 
-            // Immediately return the oldest entry if available.
-            {
-                std::lock_guard<std::mutex> lock(mutex_);
-                if (!frameQueue_.empty())
-                {
-                    auto frame = frameQueue_.front();
-                    frameQueue_.pop();
-                    return frame;
-                }
-            }
+        int GetFrameWidth() const
+        {
+            return frameWidth_;
+        }
 
-            if (disabled_) return nullptr;
+        int GetFrameHeight() const
+        {
+            return frameHeight_;
+        }
 
-            // Wait for a new frame arriving.
-            std::unique_lock<std::mutex> lock(mutex_);
-            semaphore_.wait(lock);
+        //
+        // Buffer operations
+        //
 
-            if (disabled_) return nullptr;
+        uint8_t* LockBuffer()
+        {
+            frameLock_.lock();
+            return frameBuffer_.data();
+        }
 
-            // Return the oldest entry.
-            auto frame = frameQueue_.front();
-            frameQueue_.pop();
-            return frame;
+        void UnlockBuffer()
+        {
+            frameLock_.unlock();
+        }
+
+        //
+        // Static functions
+        //
+
+        static Receiver* GetInstanceFromID(unsigned int id)
+        {
+            auto map = GetInstanceMap();
+            auto itr = map.find(id);
+            return itr != map.end() ? itr->second : nullptr;
         }
 
         //
@@ -115,6 +166,7 @@ namespace klinker
             BMDDetectedVideoInputFormatFlags detectedSignalFlags
         ) override
         {
+            // Change the video input format as notified.
             input_->PauseStreams();
             input_->EnableVideoInput(
                 newDisplayMode->GetDisplayMode(),
@@ -133,30 +185,59 @@ namespace klinker
         {
             if (videoFrame != nullptr)
             {
-                // Push the arrived frame to the frame queue.
-                auto frame = new MemoryBackedFrame(videoFrame, converter_);
-                std::lock_guard<std::mutex> lock(mutex_);
-                frameQueue_.push(frame);
-                semaphore_.notify_all();
+                std::lock_guard<std::mutex> lock(frameLock_);
+
+                // Retrieve the frame information.
+                frameWidth_ = videoFrame->GetWidth();
+                frameHeight_ = videoFrame->GetHeight();
+
+                // Resize the buffer to store the arrived frame.
+                auto size = videoFrame->GetRowBytes() * frameHeight_;
+                frameBuffer_.resize(size);
+
+                // Copy the frame data. #there_might_be_a_better_way
+                void* source;
+                AssertSuccess(videoFrame->GetBytes(&source));
+                std::memcpy(frameBuffer_.data(), source, size);
             }
             return S_OK;
         }
 
     private:
 
+        // Internal state
         std::atomic<ULONG> refCount_;
-
+        unsigned int id_;
         IDeckLinkInput* input_;
-        IDeckLinkVideoConversion* converter_;
 
-        std::queue<MemoryBackedFrame*> frameQueue_;
-        std::mutex mutex_;
-        std::condition_variable semaphore_;
-        bool disabled_;
+        // Frame data
+        std::vector<uint8_t> frameBuffer_;
+        int frameWidth_, frameHeight_;
+        std::mutex frameLock_;
+
+        //
+        // Utility functions
+        //
 
         static BMDPixelFormat FormatFlagsToPixelFormat(BMDDetectedVideoInputFormatFlags flags)
         {
-            return flags == bmdDetectedVideoInputRGB444 ? bmdFormat10BitRGB : bmdFormat10BitYUV;
+            return flags == bmdDetectedVideoInputRGB444 ? bmdFormat8BitARGB : bmdFormat8BitYUV;
+        }
+
+        //
+        // ID-instance mapping
+        //
+
+        static unsigned int GenerateID()
+        {
+            static unsigned int counter;
+            return counter++;
+        }
+
+        static std::unordered_map<unsigned int, Receiver*>& GetInstanceMap()
+        {
+            static std::unordered_map<unsigned int, Receiver*> map;
+            return map;
         }
     };
 }
