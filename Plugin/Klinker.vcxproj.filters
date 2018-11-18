@@ -36,6 +36,9 @@
     <ClInclude Include="Receiver.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="ObjectIDMap.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Klinker.cpp">

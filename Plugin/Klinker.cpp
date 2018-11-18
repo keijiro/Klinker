@@ -1,9 +1,12 @@
 #include "Common.h"
 #include "Receiver.h"
+#include "ObjectIDMap.h"
 #include "Unity/IUnityRenderingExtensions.h"
 
 namespace klinker
 {
+    ObjectIDMap<Receiver> receiverMap_;
+
     // Callback for texture update events
     void TextureUpdateCallback(int eventID, void* data)
     {
@@ -12,15 +15,15 @@ namespace klinker
         {
             // UpdateTextureBegin
             auto params = reinterpret_cast<UnityRenderingExtTextureUpdateParamsV2*>(data);
-            auto receiver = Receiver::GetInstanceFromID(params->userData);
-            params->texData = receiver->LockBuffer();
+            auto receiver = receiverMap_[params->userData];
+            params->texData = receiver->LockData();
         }
         else if (event == kUnityRenderingExtEventUpdateTextureEndV2)
         {
             // UpdateTextureEnd
             auto params = reinterpret_cast<UnityRenderingExtTextureUpdateParamsV2*>(data);
-            auto receiver = Receiver::GetInstanceFromID(params->userData);
-            receiver->UnlockBuffer();
+            auto receiver = receiverMap_[params->userData];
+            receiver->UnlockData();
         }
     }
 }
@@ -28,6 +31,7 @@ namespace klinker
 extern "C" void UNITY_INTERFACE_EXPORT *CreateReceiver()
 {
     auto receiver = new klinker::Receiver();
+    klinker::receiverMap_.Add(receiver);
     receiver->StartReceiving();
     return receiver;
 }
@@ -35,23 +39,24 @@ extern "C" void UNITY_INTERFACE_EXPORT *CreateReceiver()
 extern "C" void UNITY_INTERFACE_EXPORT DestroyReceiver(void* receiverPointer)
 {
     auto receiver = reinterpret_cast<klinker::Receiver*>(receiverPointer);
+    klinker::receiverMap_.Remove(receiver);
     receiver->StopReceiving();
     receiver->Release();
 }
 
 extern "C" unsigned int UNITY_INTERFACE_EXPORT GetReceiverID(void* receiver)
 {
-    return reinterpret_cast<klinker::Receiver*>(receiver)->GetID();
+    return klinker::receiverMap_.GetID(reinterpret_cast<klinker::Receiver*>(receiver));
 }
 
 extern "C" int UNITY_INTERFACE_EXPORT GetReceiverFrameWidth(void* receiver)
 {
-    return reinterpret_cast<klinker::Receiver*>(receiver)->GetFrameWidth();
+    return std::get<0>(reinterpret_cast<klinker::Receiver*>(receiver)->GetFrameDimensions());
 }
 
 extern "C" int UNITY_INTERFACE_EXPORT GetReceiverFrameHeight(void* receiver)
 {
-    return reinterpret_cast<klinker::Receiver*>(receiver)->GetFrameHeight();
+    return std::get<1>(reinterpret_cast<klinker::Receiver*>(receiver)->GetFrameDimensions());
 }
 
 extern "C" UnityRenderingEventAndData UNITY_INTERFACE_EXPORT GetTextureUpdateCallback()

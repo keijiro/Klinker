@@ -3,7 +3,7 @@
 #include "Common.h"
 #include <atomic>
 #include <mutex>
-#include <unordered_map>
+#include <tuple>
 #include <vector>
 
 namespace klinker
@@ -12,26 +12,14 @@ namespace klinker
     {
     public:
 
-        //
         // Constructor/destructor
-        //
 
         Receiver()
-            : refCount_(1), id_(GenerateID()), frameWidth_(0), frameHeight_(0)
+            : refCount_(1), frameSize_({0, 0})
         {
-            // Register itself to the id-instance map.
-            GetInstanceMap()[id_] = this;
         }
 
-        ~Receiver()
-        {
-            // Unregister itself from the id-instance map.
-            GetInstanceMap().erase(id_);
-        }
-
-        //
         // Controller methods
-        //
 
         void StartReceiving()
         {
@@ -58,10 +46,10 @@ namespace klinker
             AssertSuccess(input_->SetCallback(this));
 
             // Enable the video input with a default mode.
-            // We assume no one uses NTSC 23.98 and expect that
+            // We assume no one uses PAL and expect that
             // it'll be changed in the initial frame. #bad_code
             AssertSuccess(input_->EnableVideoInput(
-                bmdModeNTSC2398, bmdFormat8BitYUV,
+                bmdModePAL, bmdFormat8BitYUV,
                 bmdVideoInputEnableFormatDetection
             ));
 
@@ -78,54 +66,25 @@ namespace klinker
             input_->Release();
         }
 
-        //
         // Accessor functions
-        //
 
-        unsigned int GetID() const
+        auto GetFrameDimensions() const
         {
-            return id_;
+            return frameSize_;
         }
 
-        int GetFrameWidth() const
-        {
-            return frameWidth_;
-        }
-
-        int GetFrameHeight() const
-        {
-            return frameHeight_;
-        }
-
-        //
-        // Buffer operations
-        //
-
-        uint8_t* LockBuffer()
+        uint8_t* LockData()
         {
             frameLock_.lock();
-            return frameBuffer_.data();
+            return frameData_.data();
         }
 
-        void UnlockBuffer()
+        void UnlockData()
         {
             frameLock_.unlock();
         }
 
-        //
-        // Static functions
-        //
-
-        static Receiver* GetInstanceFromID(unsigned int id)
-        {
-            auto map = GetInstanceMap();
-            auto itr = map.find(id);
-            return itr != map.end() ? itr->second : nullptr;
-        }
-
-        //
         // IUnknown implementation
-        //
 
         HRESULT STDMETHODCALLTYPE QueryInterface(REFIID iid, LPVOID* ppv) override
         {
@@ -157,25 +116,27 @@ namespace klinker
             return val;
         }
 
-        //
         // IDeckLinkInputCallback implementation
-        //
 
         HRESULT STDMETHODCALLTYPE VideoInputFormatChanged(
-            BMDVideoInputFormatChangedEvents notificationEvents,
-            IDeckLinkDisplayMode* newDisplayMode,
-            BMDDetectedVideoInputFormatFlags detectedSignalFlags
+            BMDVideoInputFormatChangedEvents events,
+            IDeckLinkDisplayMode* mode,
+            BMDDetectedVideoInputFormatFlags flags
         ) override
         {
             // Determine the frame dimensions.
-            frameWidth_ = newDisplayMode->GetWidth();
-            frameHeight_ = newDisplayMode->GetHeight();
+            frameSize_ = { mode->GetWidth(), mode->GetHeight() };
+
+            {
+                std::lock_guard<std::mutex> lock(frameLock_);
+                frameData_.resize(mode->GetWidth() * 2 * mode->GetHeight());
+            }
 
             // Change the video input format as notified.
             input_->PauseStreams();
             input_->EnableVideoInput(
-                newDisplayMode->GetDisplayMode(),
-                FormatFlagsToPixelFormat(detectedSignalFlags),
+                mode->GetDisplayMode(),
+                bmdFormat8BitYUV,
                 bmdVideoInputEnableFormatDetection
             );
             input_->FlushStreams();
@@ -194,52 +155,23 @@ namespace klinker
                 std::lock_guard<std::mutex> lock(frameLock_);
 
                 // Resize the buffer to store the arrived frame.
-                auto size = videoFrame->GetRowBytes() * frameHeight_;
-                frameBuffer_.resize(size);
+                auto size = videoFrame->GetRowBytes() * videoFrame->GetHeight();
+                frameData_.resize(size);
 
                 // Copy the frame data. #there_might_be_a_better_way
                 void* source;
                 AssertSuccess(videoFrame->GetBytes(&source));
-                std::memcpy(frameBuffer_.data(), source, size);
+                std::memcpy(frameData_.data(), source, size);
             }
             return S_OK;
         }
 
     private:
 
-        // Internal state
         std::atomic<ULONG> refCount_;
-        unsigned int id_;
         IDeckLinkInput* input_;
-
-        // Frame data
-        std::vector<uint8_t> frameBuffer_;
-        int frameWidth_, frameHeight_;
+        std::vector<uint8_t> frameData_;
+        std::tuple<int, int> frameSize_;
         std::mutex frameLock_;
-
-        //
-        // Utility functions
-        //
-
-        static BMDPixelFormat FormatFlagsToPixelFormat(BMDDetectedVideoInputFormatFlags flags)
-        {
-            return flags == bmdDetectedVideoInputRGB444 ? bmdFormat8BitARGB : bmdFormat8BitYUV;
-        }
-
-        //
-        // ID-instance mapping
-        //
-
-        static unsigned int GenerateID()
-        {
-            static unsigned int counter;
-            return counter++;
-        }
-
-        static std::unordered_map<unsigned int, Receiver*>& GetInstanceMap()
-        {
-            static std::unordered_map<unsigned int, Receiver*> map;
-            return map;
-        }
     };
 }
