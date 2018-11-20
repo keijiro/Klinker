@@ -2,6 +2,7 @@
 
 #include "Common.h"
 #include <atomic>
+#include <mutex>
 
 namespace klinker
 {
@@ -86,19 +87,22 @@ namespace klinker
 
         void UpdateFrame(void* data)
         {
-            // Abandon the ownership of the last frame.
-            frame_->Release();
-
             // Allocate a new frame.
+            IDeckLinkMutableVideoFrame* newFrame;
             AssertSuccess(output_->CreateVideoFrame(
                 1920, 1080, 1920 * 2,
-                bmdFormat8BitYUV, bmdFrameFlagDefault, &frame_
+                bmdFormat8BitYUV, bmdFrameFlagDefault, &newFrame
             ));
 
             // Copy the frame data.
             void* pointer;
-            AssertSuccess(frame_->GetBytes(&pointer));
+            AssertSuccess(newFrame->GetBytes(&pointer));
             std::memcpy(pointer, data, 1920 * 2 * 1080);
+
+            // Replace the frame object with the new one.
+            std::lock_guard<std::mutex> lock(frameMutex_);
+            frame_->Release();
+            frame_ = newFrame;
         }
 
         // IUnknown implementation
@@ -151,6 +155,7 @@ namespace klinker
             // Skip a single frame when DisplayedLate was detected.
             if (result == bmdOutputFrameDisplayedLate) frameCount_++;
 
+            std::lock_guard<std::mutex> lock(frameMutex_);
             ScheduleFrame(frame_);
 
             return S_OK;
@@ -169,6 +174,7 @@ namespace klinker
         std::atomic<ULONG> refCount_;
         IDeckLinkOutput* output_;
         IDeckLinkMutableVideoFrame* frame_;
+        std::mutex frameMutex_;
         uint64_t frameCount_;
 
         void ScheduleFrame(IDeckLinkVideoFrame* frame)
