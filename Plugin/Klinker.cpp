@@ -1,12 +1,16 @@
 #include "Common.h"
+#include "ObjectIDMap.h"
 #include "Receiver.h"
 #include "Sender.h"
-#include "ObjectIDMap.h"
 #include "Unity/IUnityRenderingExtensions.h"
+#include <consoleapi.h>
 
-namespace klinker
+#pragma region Local functions
+
+namespace
 {
-    ObjectIDMap<Receiver> receiverMap_;
+    // ID-receiver map
+    klinker::ObjectIDMap<klinker::Receiver> receiverMap_;
 
     // Callback for texture update events
     void TextureUpdateCallback(int eventID, void* data)
@@ -16,77 +20,104 @@ namespace klinker
         {
             // UpdateTextureBegin
             auto params = reinterpret_cast<UnityRenderingExtTextureUpdateParamsV2*>(data);
-            auto receiver = receiverMap_[params->userData];
-            params->texData = receiver->LockData();
+            params->texData = receiverMap_[params->userData]->LockData();
         }
         else if (event == kUnityRenderingExtEventUpdateTextureEndV2)
         {
             // UpdateTextureEnd
             auto params = reinterpret_cast<UnityRenderingExtTextureUpdateParamsV2*>(data);
-            auto receiver = receiverMap_[params->userData];
-            receiver->UnlockData();
+            receiverMap_[params->userData]->UnlockData();
         }
     }
 }
 
-extern "C" void UNITY_INTERFACE_EXPORT * CreateReceiver()
+#pragma endregion
+
+#pragma region Plugin common functions
+
+extern "C" void UNITY_INTERFACE_EXPORT
+    UNITY_INTERFACE_API UnityPluginLoad(IUnityInterfaces* interfaces)
 {
-    auto receiver = new klinker::Receiver();
-    klinker::receiverMap_.Add(receiver);
-    receiver->StartReceiving();
-    return receiver;
+#if defined(_DEBUG)
+    // Open a console for debug logging.
+    AllocConsole();
+    FILE* pConsole;
+    freopen_s(&pConsole, "CONOUT$", "wb", stdout);
+#endif
 }
 
-extern "C" void UNITY_INTERFACE_EXPORT DestroyReceiver(void* receiverPointer)
+extern "C" UnityRenderingEventAndData
+    UNITY_INTERFACE_EXPORT GetTextureUpdateCallback()
 {
-    auto receiver = reinterpret_cast<klinker::Receiver*>(receiverPointer);
-    klinker::receiverMap_.Remove(receiver);
-    receiver->StopReceiving();
-    receiver->Release();
+    return TextureUpdateCallback;
+}
+
+#pragma endregion
+
+#pragma region Receiver plugin functions
+
+extern "C" void UNITY_INTERFACE_EXPORT * CreateReceiver()
+{
+    auto instance = new klinker::Receiver();
+    receiverMap_.Add(instance);
+    instance->StartReceiving();
+    return instance;
+}
+
+extern "C" void UNITY_INTERFACE_EXPORT DestroyReceiver(void* receiver)
+{
+    auto instance = reinterpret_cast<klinker::Receiver*>(receiver);
+    receiverMap_.Remove(instance);
+    instance->StopReceiving();
+    instance->Release();
 }
 
 extern "C" unsigned int UNITY_INTERFACE_EXPORT GetReceiverID(void* receiver)
 {
-    return klinker::receiverMap_.GetID(reinterpret_cast<klinker::Receiver*>(receiver));
+    auto instance = reinterpret_cast<klinker::Receiver*>(receiver);
+    return receiverMap_.GetID(instance);
 }
 
 extern "C" int UNITY_INTERFACE_EXPORT GetReceiverFrameWidth(void* receiver)
 {
-    return std::get<0>(reinterpret_cast<klinker::Receiver*>(receiver)->GetFrameDimensions());
+    auto instance = reinterpret_cast<klinker::Receiver*>(receiver);
+    return std::get<0>(instance->GetFrameDimensions());
 }
 
 extern "C" int UNITY_INTERFACE_EXPORT GetReceiverFrameHeight(void* receiver)
 {
-    return std::get<1>(reinterpret_cast<klinker::Receiver*>(receiver)->GetFrameDimensions());
+    auto instance = reinterpret_cast<klinker::Receiver*>(receiver);
+    return std::get<1>(instance->GetFrameDimensions());
 }
+
+#pragma endregion
+
+#pragma region Sender plugin functions
 
 extern "C" void UNITY_INTERFACE_EXPORT * CreateSender()
 {
-    auto sender = new klinker::Sender();
-    sender->StartSending();
-    return sender;
+    auto instance = new klinker::Sender();
+    instance->StartSending();
+    return instance;
 }
 
-extern "C" void UNITY_INTERFACE_EXPORT DestroySender(void* senderPointer)
+extern "C" void UNITY_INTERFACE_EXPORT DestroySender(void* sender)
 {
-    auto sender = reinterpret_cast<klinker::Sender*>(senderPointer);
-    sender->StopSending();
-    sender->Release();
+    auto instance = reinterpret_cast<klinker::Sender*>(sender);
+    instance->StopSending();
+    instance->Release();
 }
 
-extern "C" int UNITY_INTERFACE_EXPORT IsSenderReferenceLocked(void* senderPointer)
+extern "C" int UNITY_INTERFACE_EXPORT IsSenderReferenceLocked(void* sender)
 {
-    auto sender = reinterpret_cast<klinker::Sender*>(senderPointer);
-    return sender->IsReferenceLocked() ? 1 : 0;
+    auto instance = reinterpret_cast<klinker::Sender*>(sender);
+    return instance->IsReferenceLocked() ? 1 : 0;
 }
 
-extern "C" void UNITY_INTERFACE_EXPORT UpdateSenderFrame(void* senderPointer, void* data)
+extern "C" void UNITY_INTERFACE_EXPORT UpdateSenderFrame(void* sender, void* data)
 {
-    auto sender = reinterpret_cast<klinker::Sender*>(senderPointer);
-    sender->UpdateFrame(data);
+    auto instance = reinterpret_cast<klinker::Sender*>(sender);
+    instance->UpdateFrame(data);
 }
 
-extern "C" UnityRenderingEventAndData UNITY_INTERFACE_EXPORT GetTextureUpdateCallback()
-{
-    return klinker::TextureUpdateCallback;
-}
+#pragma endregion

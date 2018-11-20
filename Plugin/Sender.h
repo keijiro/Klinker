@@ -6,11 +6,20 @@
 
 namespace klinker
 {
-    class Sender final : public IDeckLinkVideoOutputCallback
+    // Frame receiver class
+    // It also privately implements a video output completion callback.
+    class Sender final : private IDeckLinkVideoOutputCallback
     {
+        #pragma region Local configuration
+
+        const BMDTimeScale TimeScale = 60000;
+        const int Prerolling = 2;
+
+        #pragma endregion
+
     public:
 
-        // Constructor/destructor
+        #pragma region Constructor/destructor
 
         Sender()
             : refCount_(1), output_(nullptr), frame_(nullptr), frameCount_(0)
@@ -19,12 +28,14 @@ namespace klinker
 
         ~Sender()
         {
-            // Internal objects should have been released;
+            // Internal objects should have been released.
             assert(output_ == nullptr);
             assert(frame_ == nullptr);
         }
 
-        // Public methods
+        #pragma endregion
+        
+        #pragma region Public methods
 
         void StartSending()
         {
@@ -50,7 +61,7 @@ namespace klinker
             iterator->Release();
             device->Release();
 
-            // Create a working frame.
+            // Create a working frame buffer.
             AssertSuccess(output_->CreateVideoFrame(
                 1920, 1080, 1920 * 2,
                 bmdFormat8BitYUV, bmdFrameFlagDefault, &frame_
@@ -73,6 +84,9 @@ namespace klinker
 
         void StopSending()
         {
+            assert(output_ != nullptr);
+            assert(frame_ != nullptr);
+
             // Stop the output stream.
             output_->StopScheduledPlayback(0, nullptr, 1);
             output_->SetScheduledFrameCompletionCallback(nullptr);
@@ -87,6 +101,9 @@ namespace klinker
 
         void UpdateFrame(void* data)
         {
+            assert(output_ != nullptr);
+            assert(frame_ != nullptr);
+
             // Allocate a new frame.
             IDeckLinkMutableVideoFrame* newFrame;
             AssertSuccess(output_->CreateVideoFrame(
@@ -99,7 +116,7 @@ namespace klinker
             AssertSuccess(newFrame->GetBytes(&pointer));
             std::memcpy(pointer, data, 1920 * 2 * 1080);
 
-            // Replace the frame object with the new one.
+            // Release and replace the previous frame object with the new one.
             std::lock_guard<std::mutex> lock(frameMutex_);
             frame_->Release();
             frame_ = newFrame;
@@ -112,7 +129,9 @@ namespace klinker
             return stat & bmdReferenceLocked;
         }
 
-        // IUnknown implementation
+        #pragma endregion
+
+        #pragma region IUnknown implementation
 
         HRESULT STDMETHODCALLTYPE QueryInterface(REFIID iid, LPVOID* ppv) override
         {
@@ -145,8 +164,10 @@ namespace klinker
             if (val == 1) delete this;
             return val;
         }
+        
+        #pragma endregion
 
-        // IDeckLinkVideoOutputCallback implementation
+        #pragma region IDeckLinkVideoOutputCallback implementation
 
         HRESULT STDMETHODCALLTYPE ScheduledFrameCompleted(
             IDeckLinkVideoFrame *completedFrame,
@@ -173,10 +194,11 @@ namespace klinker
             return S_OK;
         }
 
+        #pragma endregion
+
     private:
 
-        const BMDTimeScale TimeScale = 60000;
-        const int Prerolling = 2;
+        #pragma region Private members
 
         std::atomic<ULONG> refCount_;
         IDeckLinkOutput* output_;
@@ -191,5 +213,7 @@ namespace klinker
             output_->ScheduleVideoFrame(frame, time, duration, TimeScale);
             frameCount_++;
         }
+
+        #pragma endregion
     };
 }

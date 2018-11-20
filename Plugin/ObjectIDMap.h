@@ -1,11 +1,11 @@
 #pragma once
 
 #include "Common.h"
-#include "Receiver.h"
 #include <unordered_map>
 
 namespace klinker
 {
+    // A simple object mapper class that binds object pointers and integer IDs.
     template <typename T> class ObjectIDMap final
     {
     public:

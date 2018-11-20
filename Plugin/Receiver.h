@@ -8,21 +8,33 @@
 
 namespace klinker
 {
-    class Receiver final : public IDeckLinkInputCallback
+    // Frame receiver class
+    // It also privately implements a video input callback interface.
+    class Receiver final : private IDeckLinkInputCallback
     {
     public:
 
-        // Constructor/destructor
+        #pragma region Constructor/destructor
 
         Receiver()
             : refCount_(1), input_(nullptr), frameSize_({0, 0})
         {
         }
 
-        // Controller methods
+        ~Receiver()
+        {
+            // Internal objects should have been released.
+            assert(input_ == nullptr);
+        }
+
+        #pragma endregion
+
+        #pragma region Controller methods
 
         void StartReceiving()
         {
+            assert(input_ == nullptr);
+
             // Retrieve the first DeckLink device using an iterator.
             IDeckLinkIterator* iterator;
             AssertSuccess(CoCreateInstance(
@@ -42,7 +54,7 @@ namespace klinker
             iterator->Release();
             device->Release();
 
-            // Register itself as a callback.
+            // Register itself as a video input callback object.
             AssertSuccess(input_->SetCallback(this));
 
             // Enable the video input with a default mode.
@@ -59,14 +71,19 @@ namespace klinker
 
         void StopReceiving()
         {
+            assert(input_ != nullptr);
+
             // Stop, disable and release the input stream.
             input_->StopStreams();
             input_->DisableVideoInput();
             input_->SetCallback(nullptr);
             input_->Release();
+            input_ = nullptr;
         }
 
-        // Accessor functions
+        #pragma endregion
+
+        #pragma region Accessor functions
 
         auto GetFrameDimensions() const
         {
@@ -84,7 +101,9 @@ namespace klinker
             frameLock_.unlock();
         }
 
-        // IUnknown implementation
+        #pragma endregion
+
+        #pragma region IUnknown implementation
 
         HRESULT STDMETHODCALLTYPE QueryInterface(REFIID iid, LPVOID* ppv) override
         {
@@ -112,11 +131,13 @@ namespace klinker
         ULONG STDMETHODCALLTYPE Release() override
         {
             auto val = refCount_.fetch_sub(1);
-            if (val == 0) delete this;
+            if (val == 1) delete this;
             return val;
         }
 
-        // IDeckLinkInputCallback implementation
+        #pragma endregion
+
+        #pragma region IDeckLinkInputCallback implementation
 
         HRESULT STDMETHODCALLTYPE VideoInputFormatChanged(
             BMDVideoInputFormatChangedEvents events,
@@ -125,12 +146,13 @@ namespace klinker
         ) override
         {
             // Determine the frame dimensions.
-            frameSize_ = { mode->GetWidth(), mode->GetHeight() };
+            auto w = mode->GetWidth(), h = mode->GetHeight();
+            frameSize_ = { w, h };
 
-            {
-                std::lock_guard<std::mutex> lock(frameLock_);
-                frameData_.resize(static_cast<std::size_t>(mode->GetWidth()) * 2 * mode->GetHeight());
-            }
+            // Expand/shrink the frame memory.
+            frameLock_.lock();
+            frameData_.resize((size_t)2 * w * h);
+            frameLock_.unlock();
 
             // Change the video input format as notified.
             input_->PauseStreams();
@@ -154,11 +176,13 @@ namespace klinker
             {
                 std::lock_guard<std::mutex> lock(frameLock_);
 
-                // Resize the buffer to store the arrived frame.
+                // Frame data size in bytes
                 auto size = videoFrame->GetRowBytes() * videoFrame->GetHeight();
-                frameData_.resize(size);
 
-                // Copy the frame data. #there_might_be_a_better_way
+                // Do nothing if the size mismatches.
+                if (size != frameData_.size()) return S_OK;
+
+                // Simply memcpy the content of the frame.
                 void* source;
                 AssertSuccess(videoFrame->GetBytes(&source));
                 std::memcpy(frameData_.data(), source, size);
@@ -166,12 +190,18 @@ namespace klinker
             return S_OK;
         }
 
+        #pragma endregion
+
     private:
+
+        #pragma region Private members
 
         std::atomic<ULONG> refCount_;
         IDeckLinkInput* input_;
-        std::vector<uint8_t> frameData_;
         std::tuple<int, int> frameSize_;
+        std::vector<uint8_t> frameData_;
         std::mutex frameLock_;
+
+        #pragma endregion
     };
 }
