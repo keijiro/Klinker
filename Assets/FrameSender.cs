@@ -72,8 +72,8 @@ namespace Klinker
             var tempRT = RenderTexture.GetTemporary(1920 / 2, 1080);
             Graphics.Blit(source, tempRT, _encoderMaterial, 0);
             _frameQueue.Enqueue(AsyncGPUReadback.Request(tempRT));
-            Graphics.Blit(tempRT, destination);
             RenderTexture.ReleaseTemporary(tempRT);
+            Graphics.Blit(source, destination);
         }
 
         #endregion

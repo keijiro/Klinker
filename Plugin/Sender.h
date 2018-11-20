@@ -176,7 +176,7 @@ namespace klinker
     private:
 
         const BMDTimeScale TimeScale = 60000;
-        const int Prerolling = 3;
+        const int Prerolling = 2;
 
         std::atomic<ULONG> refCount_;
         IDeckLinkOutput* output_;
