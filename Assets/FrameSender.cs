@@ -11,12 +11,17 @@ namespace Klinker
     {
         #region Private members
 
-        System.IntPtr _plugin;
+        IntPtr _plugin;
 
         Queue<AsyncGPUReadbackRequest> _frameQueue
             = new Queue<AsyncGPUReadbackRequest>();
 
         Material _encoderMaterial;
+
+        public bool IsReferenceLocked { get {
+            return _plugin != IntPtr.Zero &&
+                PluginEntry.IsSenderReferenceLocked(_plugin) != 0;
+        } }
 
         void Start()
         {

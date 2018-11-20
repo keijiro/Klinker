@@ -105,6 +105,13 @@ namespace klinker
             frame_ = newFrame;
         }
 
+        bool IsReferenceLocked() const
+        {
+            BMDReferenceStatus stat;
+            AssertSuccess(output_->GetReferenceStatus(&stat));
+            return stat & bmdReferenceLocked;
+        }
+
         // IUnknown implementation
 
         HRESULT STDMETHODCALLTYPE QueryInterface(REFIID iid, LPVOID* ppv) override

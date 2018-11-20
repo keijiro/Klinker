@@ -74,6 +74,12 @@ extern "C" void UNITY_INTERFACE_EXPORT DestroySender(void* senderPointer)
     sender->Release();
 }
 
+extern "C" int UNITY_INTERFACE_EXPORT IsSenderReferenceLocked(void* senderPointer)
+{
+    auto sender = reinterpret_cast<klinker::Sender*>(senderPointer);
+    return sender->IsReferenceLocked() ? 1 : 0;
+}
+
 extern "C" void UNITY_INTERFACE_EXPORT UpdateSenderFrame(void* senderPointer, void* data)
 {
     auto sender = reinterpret_cast<klinker::Sender*>(senderPointer);

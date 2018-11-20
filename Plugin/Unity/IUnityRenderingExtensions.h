@@ -8,10 +8,10 @@
     ============================================
 
     On top of the Low-level native plugin interface, Unity also supports low level rendering extensions that can receive callbacks when certain events happen.
-    This is mostly used to implement and control low-level rendering in your plugin and enable it to work with Unity’s multithreaded rendering.
+    This is mostly used to implement and control low-level rendering in your plugin and enable it to work with Unity's multithreaded rendering.
 
     Due to the low-level nature of this extension the plugin might need to be preloaded before the devices get created.
-    Currently the convention is name-based namely the plugin name must be prefixed by “GfxPlugin”. Example: GfxPluginMyFancyNativePlugin.
+    Currently the convention is name-based namely the plugin name must be prefixed by "GfxPlugin". Example: GfxPluginMyFancyNativePlugin.
 
     <code>
         // Native plugin code example

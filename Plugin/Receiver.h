@@ -15,7 +15,7 @@ namespace klinker
         // Constructor/destructor
 
         Receiver()
-            : refCount_(1), frameSize_({0, 0})
+            : refCount_(1), input_(nullptr), frameSize_({0, 0})
         {
         }
 
@@ -129,7 +129,7 @@ namespace klinker
 
             {
                 std::lock_guard<std::mutex> lock(frameLock_);
-                frameData_.resize(mode->GetWidth() * 2 * mode->GetHeight());
+                frameData_.resize(static_cast<std::size_t>(mode->GetWidth()) * 2 * mode->GetHeight());
             }
 
             // Change the video input format as notified.

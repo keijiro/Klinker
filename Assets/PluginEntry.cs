@@ -21,6 +21,9 @@ namespace Klinker
         public static extern void DestroySender(IntPtr sender);
 
         [DllImport("Klinker")]
+        public static extern int IsSenderReferenceLocked(IntPtr sender);
+
+        [DllImport("Klinker")]
         public static extern void UpdateSenderFrame(IntPtr sender, IntPtr data);
 
         #endregion
