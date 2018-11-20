@@ -1,5 +1,6 @@
 #include "Common.h"
 #include "Receiver.h"
+#include "Sender.h"
 #include "ObjectIDMap.h"
 #include "Unity/IUnityRenderingExtensions.h"
 
@@ -28,7 +29,7 @@ namespace klinker
     }
 }
 
-extern "C" void UNITY_INTERFACE_EXPORT *CreateReceiver()
+extern "C" void UNITY_INTERFACE_EXPORT * CreateReceiver()
 {
     auto receiver = new klinker::Receiver();
     klinker::receiverMap_.Add(receiver);
@@ -57,6 +58,26 @@ extern "C" int UNITY_INTERFACE_EXPORT GetReceiverFrameWidth(void* receiver)
 extern "C" int UNITY_INTERFACE_EXPORT GetReceiverFrameHeight(void* receiver)
 {
     return std::get<1>(reinterpret_cast<klinker::Receiver*>(receiver)->GetFrameDimensions());
+}
+
+extern "C" void UNITY_INTERFACE_EXPORT * CreateSender()
+{
+    auto sender = new klinker::Sender();
+    sender->StartSending();
+    return sender;
+}
+
+extern "C" void UNITY_INTERFACE_EXPORT DestroySender(void* senderPointer)
+{
+    auto sender = reinterpret_cast<klinker::Sender*>(senderPointer);
+    sender->StopSending();
+    sender->Release();
+}
+
+extern "C" void UNITY_INTERFACE_EXPORT UpdateSenderFrame(void* senderPointer, void* data)
+{
+    auto sender = reinterpret_cast<klinker::Sender*>(senderPointer);
+    sender->UpdateFrame(data);
 }
 
 extern "C" UnityRenderingEventAndData UNITY_INTERFACE_EXPORT GetTextureUpdateCallback()

@@ -4,6 +4,7 @@
     {
         _MainTex("", 2D) = "" {}
     }
+
     CGINCLUDE
 
     #include "UnityCG.cginc"
@@ -47,6 +48,7 @@
     }
 
     ENDCG
+
     SubShader
     {
         Cull Off ZWrite Off ZTest Always

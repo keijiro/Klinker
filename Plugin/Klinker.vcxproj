@@ -159,6 +159,7 @@
     <ClInclude Include="DeckLinkAPI_h.h" />
     <ClInclude Include="Receiver.h" />
     <ClInclude Include="ObjectIDMap.h" />
+    <ClInclude Include="Sender.h" />
     <ClInclude Include="Unity\IUnityGraphics.h" />
     <ClInclude Include="Unity\IUnityInterface.h" />
     <ClInclude Include="Unity\IUnityRenderingExtensions.h" />
