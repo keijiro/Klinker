@@ -128,6 +128,18 @@ extern "C" void UNITY_INTERFACE_EXPORT DestroySender(void* sender)
     instance->Release();
 }
 
+extern "C" int UNITY_INTERFACE_EXPORT GetSenderFrameWidth(void* sender)
+{
+    auto instance = reinterpret_cast<klinker::Sender*>(sender);
+    return std::get<0>(instance->GetFrameDimensions());
+}
+
+extern "C" int UNITY_INTERFACE_EXPORT GetSenderFrameHeight(void* sender)
+{
+    auto instance = reinterpret_cast<klinker::Sender*>(sender);
+    return std::get<1>(instance->GetFrameDimensions());
+}
+
 extern "C" int UNITY_INTERFACE_EXPORT IsSenderReferenceLocked(void* sender)
 {
     auto instance = reinterpret_cast<klinker::Sender*>(sender);

@@ -288,8 +288,8 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1519612758}
-  - component: {fileID: 1519612757}
   - component: {fileID: 1519612756}
+  - component: {fileID: 1519612757}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -309,6 +309,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8970f79920bafe94ba5b05f1b26f8ecb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  _deviceSelection: 0
+  _formatSelection: 11
+  _bufferLength: 2
 --- !u!20 &1519612757
 Camera:
   m_ObjectHideFlags: 0

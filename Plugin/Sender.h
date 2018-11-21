@@ -3,6 +3,7 @@
 #include "Common.h"
 #include <atomic>
 #include <mutex>
+#include <tuple>
 
 namespace klinker
 {
@@ -10,18 +11,14 @@ namespace klinker
     // It also privately implements a video output completion callback.
     class Sender final : private IDeckLinkVideoOutputCallback
     {
-        #pragma region Local configuration
-
-        const BMDTimeScale TimeScale = 60000;
-
-        #pragma endregion
-
     public:
 
         #pragma region Constructor/destructor
 
         Sender()
-            : refCount_(1), output_(nullptr), frame_(nullptr), frameCount_(0)
+            : refCount_(1),
+              output_(nullptr), displayMode_(nullptr), frame_(nullptr),
+              frameDuration_(0), timeScale_(1), frameCount_(0)
         {
         }
 
@@ -29,49 +26,48 @@ namespace klinker
         {
             // Internal objects should have been released.
             assert(output_ == nullptr);
+            assert(displayMode_ == nullptr);
             assert(frame_ == nullptr);
         }
 
         #pragma endregion
-        
+
+        #pragma region Accessor methods
+
+        std::tuple<int, int> GetFrameDimensions() const
+        {
+            assert(displayMode_ != nullptr);
+            return { displayMode_->GetWidth(), displayMode_->GetHeight() };
+        }
+
+        bool IsReferenceLocked() const
+        {
+            BMDReferenceStatus stat;
+            AssertSuccess(output_->GetReferenceStatus(&stat));
+            return stat & bmdReferenceLocked;
+        }
+
+        #pragma endregion
+
         #pragma region Public methods
 
         void StartSending(int deviceIndex, int formatIndex, int preroll)
         {
             assert(output_ == nullptr);
+            assert(displayMode_ == nullptr);
             assert(frame_ == nullptr);
 
-            // Retrieve the first DeckLink device using an iterator.
-            IDeckLinkIterator* iterator;
-            AssertSuccess(CoCreateInstance(
-                CLSID_CDeckLinkIterator, nullptr, CLSCTX_ALL,
-                IID_IDeckLinkIterator, reinterpret_cast<void**>(&iterator)
-            ));
-
-            IDeckLink* device;
-            AssertSuccess(iterator->Next(&device));
-
-            // Retrieve an output interface from the device.
-            AssertSuccess(device->QueryInterface(
-                IID_IDeckLinkOutput, reinterpret_cast<void**>(&output_)
-            ));
-
-            // These references are no longer needed.
-            iterator->Release();
-            device->Release();
+            InitializeOutput(deviceIndex, formatIndex);
 
             // Create a working frame buffer.
-            AssertSuccess(output_->CreateVideoFrame(
-                1920, 1080, 1920 * 2,
-                bmdFormat8BitYUV, bmdFrameFlagDefault, &frame_
-            ));
+            frame_ = AllocateFrame();
 
             // Start getting callback from the output object.
             AssertSuccess(output_->SetScheduledFrameCompletionCallback(this));
 
-            // Enable video output with 1080i59.94.
+            // Enable video output.
             AssertSuccess(output_->EnableVideoOutput(
-                bmdModeHD1080i5994, bmdVideoOutputFlagDefault
+                displayMode_->GetDisplayMode(), bmdVideoOutputFlagDefault
             ));
 
             // Prerolling with blank frames.
@@ -84,6 +80,7 @@ namespace klinker
         void StopSending()
         {
             assert(output_ != nullptr);
+            assert(displayMode_ != nullptr);
             assert(frame_ != nullptr);
 
             // Stop the output stream.
@@ -94,6 +91,8 @@ namespace klinker
             // Release the internal objects.
             frame_->Release();
             frame_ = nullptr;
+            displayMode_->Release();
+            displayMode_ = nullptr;
             output_->Release();
             output_ = nullptr;
         }
@@ -101,31 +100,23 @@ namespace klinker
         void UpdateFrame(void* data)
         {
             assert(output_ != nullptr);
+            assert(displayMode_ != nullptr);
             assert(frame_ != nullptr);
 
             // Allocate a new frame.
-            IDeckLinkMutableVideoFrame* newFrame;
-            AssertSuccess(output_->CreateVideoFrame(
-                1920, 1080, 1920 * 2,
-                bmdFormat8BitYUV, bmdFrameFlagDefault, &newFrame
-            ));
+            IDeckLinkMutableVideoFrame* newFrame = AllocateFrame();
 
             // Copy the frame data.
             void* pointer;
             AssertSuccess(newFrame->GetBytes(&pointer));
-            std::memcpy(pointer, data, 1920 * 2 * 1080);
+            std::size_t size = (std::size_t)2 *
+                displayMode_->GetWidth() * displayMode_->GetHeight();
+            std::memcpy(pointer, data, size);
 
             // Release and replace the previous frame object with the new one.
             std::lock_guard<std::mutex> lock(frameMutex_);
             frame_->Release();
             frame_ = newFrame;
-        }
-
-        bool IsReferenceLocked() const
-        {
-            BMDReferenceStatus stat;
-            AssertSuccess(output_->GetReferenceStatus(&stat));
-            return stat & bmdReferenceLocked;
         }
 
         #pragma endregion
@@ -200,17 +191,78 @@ namespace klinker
         #pragma region Private members
 
         std::atomic<ULONG> refCount_;
+
         IDeckLinkOutput* output_;
+        IDeckLinkDisplayMode* displayMode_;
+
         IDeckLinkMutableVideoFrame* frame_;
         std::mutex frameMutex_;
+
+        BMDTimeValue frameDuration_;
+        BMDTimeScale timeScale_;
         uint64_t frameCount_;
+
+        IDeckLinkMutableVideoFrame* AllocateFrame()
+        {
+            IDeckLinkMutableVideoFrame* frame;
+            AssertSuccess(output_->CreateVideoFrame(
+                displayMode_->GetWidth(), displayMode_->GetHeight(),
+                displayMode_->GetWidth() * 2,
+                bmdFormat8BitYUV, bmdFrameFlagDefault, &frame
+            ));
+            return frame;
+        }
 
         void ScheduleFrame(IDeckLinkVideoFrame* frame)
         {
-            auto time = static_cast<BMDTimeValue>(TimeScale * frameCount_ * 2 / 59.94);
-            auto duration = static_cast<BMDTimeValue>(TimeScale * 2 / 59.94);
-            output_->ScheduleVideoFrame(frame, time, duration, TimeScale);
-            frameCount_++;
+            output_->ScheduleVideoFrame(
+                frame, frameDuration_ * frameCount_++,
+                frameDuration_, timeScale_
+            );
+        }
+
+        void InitializeOutput(int deviceIndex, int formatIndex)
+        {
+            // Device iterator
+            IDeckLinkIterator* iterator;
+            AssertSuccess(CoCreateInstance(
+                CLSID_CDeckLinkIterator, nullptr, CLSCTX_ALL,
+                IID_IDeckLinkIterator, reinterpret_cast<void**>(&iterator)
+            ));
+
+            // Iterate until reaching the specified index.
+            IDeckLink* device = nullptr;
+            for (auto i = 0; i <= deviceIndex; i++)
+            {
+                if (device != nullptr) device->Release();
+                AssertSuccess(iterator->Next(&device));
+            }
+
+            iterator->Release(); // The iterator is no longer needed.
+
+            // Output interface of the specified device
+            AssertSuccess(device->QueryInterface(
+                IID_IDeckLinkOutput, reinterpret_cast<void**>(&output_)
+            ));
+
+            device->Release(); // The device object is no longer needed.
+
+            // Display mode iterator
+            IDeckLinkDisplayModeIterator* dmIterator;
+            AssertSuccess(output_->GetDisplayModeIterator(&dmIterator));
+
+            // Iterate until reaching the specified index.
+            for (auto i = 0; i <= formatIndex; i++)
+            {
+                if (displayMode_ != nullptr) displayMode_->Release();
+                AssertSuccess(dmIterator->Next(&displayMode_));
+            }
+
+            // Get the frame rate defined in the display mode.
+            AssertSuccess(displayMode_->GetFrameRate(&frameDuration_, &timeScale_));
+
+            // Cleaning up
+            dmIterator->Release();
         }
 
         #pragma endregion

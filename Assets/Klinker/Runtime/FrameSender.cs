@@ -41,7 +41,7 @@ namespace Klinker
 
         void Start()
         {
-            _plugin = PluginEntry.CreateSender(0, 0, _bufferLength);
+            _plugin = PluginEntry.CreateSender(_deviceSelection, _formatSelection, _bufferLength);
             _encoderMaterial = new Material(Shader.Find("Hidden/Klinker/Encoder"));
         }
 
@@ -86,7 +86,10 @@ namespace Klinker
         void OnRenderImage(RenderTexture source, RenderTexture destination)
         {
             // Blit to a temporary RT and request a readback on it.
-            var tempRT = RenderTexture.GetTemporary(1920 / 2, 1080);
+            var tempRT = RenderTexture.GetTemporary(
+                PluginEntry.GetSenderFrameWidth(_plugin) / 2,
+                PluginEntry.GetSenderFrameHeight(_plugin)
+            );
             Graphics.Blit(source, tempRT, _encoderMaterial, 0);
             _frameQueue.Enqueue(AsyncGPUReadback.Request(tempRT));
             RenderTexture.ReleaseTemporary(tempRT);
