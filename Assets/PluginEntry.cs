@@ -15,7 +15,7 @@ namespace Klinker
         #region Sender functions
 
         [DllImport("Klinker")]
-        public static extern IntPtr CreateSender();
+        public static extern IntPtr CreateSender(int preroll);
 
         [DllImport("Klinker")]
         public static extern void DestroySender(IntPtr sender);

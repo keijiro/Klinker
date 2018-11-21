@@ -13,7 +13,6 @@ namespace klinker
         #pragma region Local configuration
 
         const BMDTimeScale TimeScale = 60000;
-        const int Prerolling = 2;
 
         #pragma endregion
 
@@ -37,7 +36,7 @@ namespace klinker
         
         #pragma region Public methods
 
-        void StartSending()
+        void StartSending(int preroll)
         {
             assert(output_ == nullptr);
             assert(frame_ == nullptr);
@@ -76,7 +75,7 @@ namespace klinker
             ));
 
             // Prerolling with blank frames.
-            for (auto i = 0; i < Prerolling; i++) ScheduleFrame(frame_);
+            for (auto i = 0; i < preroll; i++) ScheduleFrame(frame_);
 
             // Start scheduled playback.
             AssertSuccess(output_->StartScheduledPlayback(0, 1, 1));

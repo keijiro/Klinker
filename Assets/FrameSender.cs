@@ -9,6 +9,21 @@ namespace Klinker
     [RequireComponent(typeof(Camera))]
     public class FrameSender : MonoBehaviour
     {
+        #region Editable attributes
+
+        [SerializeField, Range(0, 10)] int _bufferLength = 2;
+
+        #endregion
+
+        #region Public properties
+
+        public bool IsReferenceLocked { get {
+            return _plugin != IntPtr.Zero &&
+                PluginEntry.IsSenderReferenceLocked(_plugin) != 0;
+        } }
+
+        #endregion
+
         #region Private members
 
         IntPtr _plugin;
@@ -18,14 +33,13 @@ namespace Klinker
 
         Material _encoderMaterial;
 
-        public bool IsReferenceLocked { get {
-            return _plugin != IntPtr.Zero &&
-                PluginEntry.IsSenderReferenceLocked(_plugin) != 0;
-        } }
+        #endregion
+
+        #region MonoBehaviour implementation
 
         void Start()
         {
-            _plugin = PluginEntry.CreateSender();
+            _plugin = PluginEntry.CreateSender(_bufferLength);
             _encoderMaterial = new Material(Shader.Find("Hidden/Klinker/Encoder"));
         }
 
@@ -69,10 +83,13 @@ namespace Klinker
 
         void OnRenderImage(RenderTexture source, RenderTexture destination)
         {
+            // Blit to a temporary RT and request a readback on it.
             var tempRT = RenderTexture.GetTemporary(1920 / 2, 1080);
             Graphics.Blit(source, tempRT, _encoderMaterial, 0);
             _frameQueue.Enqueue(AsyncGPUReadback.Request(tempRT));
             RenderTexture.ReleaseTemporary(tempRT);
+
+            // Through blit
             Graphics.Blit(source, destination);
         }
 

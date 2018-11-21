@@ -94,10 +94,10 @@ extern "C" int UNITY_INTERFACE_EXPORT GetReceiverFrameHeight(void* receiver)
 
 #pragma region Sender plugin functions
 
-extern "C" void UNITY_INTERFACE_EXPORT * CreateSender()
+extern "C" void UNITY_INTERFACE_EXPORT * CreateSender(int preroll)
 {
     auto instance = new klinker::Sender();
-    instance->StartSending();
+    instance->StartSending(preroll);
     return instance;
 }
 
