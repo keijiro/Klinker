@@ -1,5 +1,7 @@
 #pragma once
 
+#define NOMINMAX
+
 #include "DeckLinkAPI_h.h"
 #include <cassert>
 #include <cstdint>

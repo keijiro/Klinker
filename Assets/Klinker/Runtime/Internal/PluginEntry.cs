@@ -12,10 +12,23 @@ namespace Klinker
 
         #endregion
 
+        #region Enumeration functions
+
+        [DllImport("Klinker")]
+        public static extern int
+            RetrieveDeviceNames(IntPtr[] names, int maxCount);
+
+        [DllImport("Klinker")]
+        public static extern int
+            RetrieveOutputFormatNames(int device, IntPtr[] names, int maxCount);
+
+        #endregion
+
         #region Sender functions
 
         [DllImport("Klinker")]
-        public static extern IntPtr CreateSender(int preroll);
+        public static extern IntPtr
+            CreateSender(int device, int format, int preroll);
 
         [DllImport("Klinker")]
         public static extern void DestroySender(IntPtr sender);

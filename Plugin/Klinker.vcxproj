@@ -157,6 +157,7 @@
   <ItemGroup>
     <ClInclude Include="Common.h" />
     <ClInclude Include="DeckLinkAPI_h.h" />
+    <ClInclude Include="Enumerator.h" />
     <ClInclude Include="Receiver.h" />
     <ClInclude Include="ObjectIDMap.h" />
     <ClInclude Include="Sender.h" />

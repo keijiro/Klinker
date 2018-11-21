@@ -36,7 +36,7 @@ namespace klinker
         
         #pragma region Public methods
 
-        void StartSending(int preroll)
+        void StartSending(int deviceIndex, int formatIndex, int preroll)
         {
             assert(output_ == nullptr);
             assert(frame_ == nullptr);

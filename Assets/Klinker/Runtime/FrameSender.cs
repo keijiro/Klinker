@@ -11,6 +11,8 @@ namespace Klinker
     {
         #region Editable attributes
 
+        [SerializeField] int _deviceSelection;
+        [SerializeField] int _formatSelection;
         [SerializeField, Range(0, 10)] int _bufferLength = 2;
 
         #endregion
@@ -39,7 +41,7 @@ namespace Klinker
 
         void Start()
         {
-            _plugin = PluginEntry.CreateSender(_bufferLength);
+            _plugin = PluginEntry.CreateSender(0, 0, _bufferLength);
             _encoderMaterial = new Material(Shader.Find("Hidden/Klinker/Encoder"));
         }
 

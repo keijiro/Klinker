@@ -1,4 +1,4 @@
-#include "Common.h"
+#include "Enumerator.h"
 #include "ObjectIDMap.h"
 #include "Receiver.h"
 #include "Sender.h"
@@ -54,6 +54,26 @@ extern "C" UnityRenderingEventAndData
 
 #pragma endregion
 
+#pragma region Enumeration plugin functions
+
+namespace { klinker::Enumerator enumerator_; }
+
+extern "C" int UNITY_INTERFACE_EXPORT
+    RetrieveDeviceNames(BSTR names[], int maxCount)
+{
+    enumerator_.ScanDeviceNames();
+    return enumerator_.CopyStringPointers(names, maxCount);
+}
+
+extern "C" int UNITY_INTERFACE_EXPORT
+    RetrieveOutputFormatNames(int deviceIndex, BSTR names[], int maxCount)
+{
+    enumerator_.ScanOutputFormatNames(deviceIndex);
+    return enumerator_.CopyStringPointers(names, maxCount);
+}
+
+#pragma endregion
+
 #pragma region Receiver plugin functions
 
 extern "C" void UNITY_INTERFACE_EXPORT * CreateReceiver()
@@ -94,10 +114,10 @@ extern "C" int UNITY_INTERFACE_EXPORT GetReceiverFrameHeight(void* receiver)
 
 #pragma region Sender plugin functions
 
-extern "C" void UNITY_INTERFACE_EXPORT * CreateSender(int preroll)
+extern "C" void UNITY_INTERFACE_EXPORT * CreateSender(int device, int format, int preroll)
 {
     auto instance = new klinker::Sender();
-    instance->StartSending(preroll);
+    instance->StartSending(device, format, preroll);
     return instance;
 }
 
