@@ -74,7 +74,7 @@ extern "C" int UNITY_INTERFACE_EXPORT
 }
 
 extern "C" int UNITY_INTERFACE_EXPORT
-    RetrieveInputFormatNames(int deviceIndex, void* names[], int maxCount)
+    RetrieveOutputFormatNames(int deviceIndex, void* names[], int maxCount)
 {
     enumerator_.ScanOutputFormatNames(deviceIndex);
     return enumerator_.CopyStringPointers(names, maxCount);
