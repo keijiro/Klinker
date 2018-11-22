@@ -57,15 +57,16 @@ namespace klinker
             assert(displayMode_ == nullptr);
             assert(frame_ == nullptr);
 
+            // Initialize a video output.
             InitializeOutput(deviceIndex, formatIndex);
 
             // Create a working frame buffer.
             frame_ = AllocateFrame();
 
-            // Start getting callback from the output object.
+            // Start getting callback from the video output.
             AssertSuccess(output_->SetScheduledFrameCompletionCallback(this));
 
-            // Enable video output.
+            // Enable the video output.
             AssertSuccess(output_->EnableVideoOutput(
                 displayMode_->GetDisplayMode(), bmdVideoOutputFlagDefault
             ));

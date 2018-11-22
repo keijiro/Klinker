@@ -62,15 +62,9 @@ namespace Klinker
 
             EditorGUILayout.PropertyField(_bufferLength);
 
-            if (targets.Length == 1)
-            {
-                var sender = (FrameSender)target;
-
-                EditorGUILayout.LabelField(
-                    "Reference Status", 
-                    sender.IsReferenceLocked ? "Genlock Enabled" : "-"
-                );
-            }
+            var genlocked = ((FrameSender)target).IsReferenceLocked;
+            EditorGUILayout.LabelField
+                ("Reference Status", genlocked ? "Genlock Enabled" : "-");
 
             serializedObject.ApplyModifiedProperties();
         }

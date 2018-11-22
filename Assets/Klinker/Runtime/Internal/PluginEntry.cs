@@ -50,7 +50,7 @@ namespace Klinker
         #region Receiver functions
 
         [DllImport("Klinker")]
-        public static extern IntPtr CreateReceiver();
+        public static extern IntPtr CreateReceiver(int device, int format);
 
         [DllImport("Klinker")]
         public static extern void DestroyReceiver(IntPtr receiver);
@@ -63,6 +63,9 @@ namespace Klinker
 
         [DllImport("Klinker")]
         public static extern int GetReceiverFrameHeight(IntPtr receiver);
+
+        [DllImport("Klinker")]
+        public static extern IntPtr GetReceiverFormatName(IntPtr receiver);
 
         #endregion
     }

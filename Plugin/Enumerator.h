@@ -22,7 +22,7 @@ namespace klinker
 
         #pragma region Accessor methods
 
-        int CopyStringPointers(BSTR pointers[], int maxCount) const
+        int CopyStringPointers(void* pointers[], int maxCount) const
         {
             auto count = std::min(maxCount, static_cast<int>(names_.size()));
             for (auto i = 0; i < count; i++) pointers[i] = names_[i];

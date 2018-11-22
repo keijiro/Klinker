@@ -20,13 +20,21 @@ namespace
         {
             // UpdateTextureBegin
             auto params = reinterpret_cast<UnityRenderingExtTextureUpdateParamsV2*>(data);
-            params->texData = receiverMap_[params->userData]->LockData();
+            auto receiver = receiverMap_[params->userData];
+
+            // Check if the size of the data matches.
+            auto dataSize = params->width * params->height * params->bpp;
+            if (receiver->CalculateFrameDataSize() != dataSize) return;
+
+            // Lock the frame data for the update.
+            params->texData = const_cast<uint8_t*>(receiver->LockFrameData());
         }
         else if (event == kUnityRenderingExtEventUpdateTextureEndV2)
         {
             // UpdateTextureEnd
+            // Just unlock the frame data.
             auto params = reinterpret_cast<UnityRenderingExtTextureUpdateParamsV2*>(data);
-            receiverMap_[params->userData]->UnlockData();
+            receiverMap_[params->userData]->UnlockFrameData();
         }
     }
 }
@@ -59,14 +67,14 @@ extern "C" UnityRenderingEventAndData
 namespace { klinker::Enumerator enumerator_; }
 
 extern "C" int UNITY_INTERFACE_EXPORT
-    RetrieveDeviceNames(BSTR names[], int maxCount)
+    RetrieveDeviceNames(void* names[], int maxCount)
 {
     enumerator_.ScanDeviceNames();
     return enumerator_.CopyStringPointers(names, maxCount);
 }
 
 extern "C" int UNITY_INTERFACE_EXPORT
-    RetrieveOutputFormatNames(int deviceIndex, BSTR names[], int maxCount)
+    RetrieveInputFormatNames(int deviceIndex, void* names[], int maxCount)
 {
     enumerator_.ScanOutputFormatNames(deviceIndex);
     return enumerator_.CopyStringPointers(names, maxCount);
@@ -76,11 +84,11 @@ extern "C" int UNITY_INTERFACE_EXPORT
 
 #pragma region Receiver plugin functions
 
-extern "C" void UNITY_INTERFACE_EXPORT * CreateReceiver()
+extern "C" void UNITY_INTERFACE_EXPORT * CreateReceiver(int device, int format)
 {
     auto instance = new klinker::Receiver();
     receiverMap_.Add(instance);
-    instance->StartReceiving();
+    instance->StartReceiving(device, format);
     return instance;
 }
 
@@ -108,6 +116,15 @@ extern "C" int UNITY_INTERFACE_EXPORT GetReceiverFrameHeight(void* receiver)
 {
     auto instance = reinterpret_cast<klinker::Receiver*>(receiver);
     return std::get<1>(instance->GetFrameDimensions());
+}
+
+extern "C" void UNITY_INTERFACE_EXPORT * GetReceiverFormatName(void* receiver)
+{
+    auto instance = reinterpret_cast<klinker::Receiver*>(receiver);
+    static BSTR name = nullptr;
+    if (name != nullptr) SysFreeString(name);
+    name = instance->RetrieveFormatName();
+    return name;
 }
 
 #pragma endregion

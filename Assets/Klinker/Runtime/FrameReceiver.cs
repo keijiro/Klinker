@@ -1,19 +1,49 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEngine.Rendering;
+using System.Runtime.InteropServices;
 
 namespace Klinker
 {
     public class FrameReceiver : MonoBehaviour
     {
+        #region Editable attributes
+
+        [SerializeField] int _deviceSelection = 0;
+
+        #endregion
+
+        #region Private members
+
+        System.IntPtr _receiver;
+
         Texture2D _receivedTexture;
         RenderTexture _decodedTexture;
+
         CommandBuffer _command;
         Material _material;
-        System.IntPtr _receiver;
+
+        #endregion
+
+        #region Public property
+
+        static byte[] _nameBuffer = new byte[256];
+
+        public string FormatName {
+            get {
+                if (_receiver == System.IntPtr.Zero) return "-";
+                var bstr = PluginEntry.GetReceiverFormatName(_receiver);
+                if (bstr == System.IntPtr.Zero) return "-";
+                return Marshal.PtrToStringBSTR(bstr);
+            }
+        }
+
+        #endregion
+
+        #region MonoBehaviour implementation
 
         void Start()
         {
-            _receiver = PluginEntry.CreateReceiver();
+            _receiver = PluginEntry.CreateReceiver(_deviceSelection, 0);
             _command = new CommandBuffer();
             _material = new Material(Shader.Find("Hidden/Klinker/Decoder"));
         }
@@ -31,16 +61,27 @@ namespace Klinker
 
         void Update()
         {
+            var width = PluginEntry.GetReceiverFrameWidth(_receiver);
+            var height = PluginEntry.GetReceiverFrameHeight(_receiver);
+
+            // Destroy texture objects when the dimensions were changed.
+            if (_receivedTexture != null &&
+                _receivedTexture.width != width / 2 &&
+                _receivedTexture.height != height)
+            {
+                Destroy(_receivedTexture);
+                Destroy(_decodedTexture);
+                _receivedTexture = null;
+                _decodedTexture = null;
+            }
+
+            // Lazy texture initialization
             if (_receivedTexture == null)
             {
-                var w = PluginEntry.GetReceiverFrameWidth(_receiver);
-                var h = PluginEntry.GetReceiverFrameHeight(_receiver);
-                if (w == 0 || h == 0) return;
-
-                _receivedTexture = new Texture2D(w / 2, h, TextureFormat.ARGB32, false);
+                _receivedTexture = new Texture2D
+                    (width / 2, height, TextureFormat.ARGB32, false);
                 _receivedTexture.filterMode = FilterMode.Point;
-
-                _decodedTexture = new RenderTexture(w, h, 0);
+                _decodedTexture = new RenderTexture(width, height, 0);
                 _decodedTexture.wrapMode = TextureWrapMode.Clamp;
             }
 
@@ -60,5 +101,7 @@ namespace Klinker
             prop.SetTexture("_MainTex", _decodedTexture);
             GetComponent<Renderer>().SetPropertyBlock(prop);
         }
+
+        #endregion
     }
 }
