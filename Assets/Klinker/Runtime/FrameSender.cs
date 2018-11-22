@@ -11,8 +11,8 @@ namespace Klinker
     {
         #region Editable attributes
 
-        [SerializeField] int _deviceSelection;
-        [SerializeField] int _formatSelection;
+        [SerializeField] int _deviceSelection = 0;
+        [SerializeField] int _formatSelection = 0;
         [SerializeField, Range(0, 10)] int _bufferLength = 2;
 
         #endregion
