@@ -9,13 +9,13 @@ namespace Klinker
     {
         SerializedProperty _deviceSelection;
         SerializedProperty _formatSelection;
-        SerializedProperty _bufferLength;
+        SerializedProperty _queueLength;
+        SerializedProperty _lowLatencyMode;
 
         GUIContent[] _deviceLabels;
-        int[] _deviceOptions;
-
         GUIContent[] _formatLabels;
-        int[] _formatOptions;
+        int[] _deviceValues;
+        int[] _formatValues;
 
         readonly GUIContent _labelDevice = new GUIContent("Device");
         readonly GUIContent _labelFormat = new GUIContent("Format");
@@ -24,7 +24,7 @@ namespace Klinker
         {
             var formats = DeviceManager.GetOutputFormatNames(deviceIndex);
             _formatLabels = formats.Select((x) => new GUIContent(x)).ToArray();
-            _formatOptions = Enumerable.Range(0, formats.Length).ToArray();
+            _formatValues = Enumerable.Range(0, formats.Length).ToArray();
         }
 
         public override bool RequiresConstantRepaint()
@@ -36,11 +36,12 @@ namespace Klinker
         {
             _deviceSelection = serializedObject.FindProperty("_deviceSelection");
             _formatSelection = serializedObject.FindProperty("_formatSelection");
-            _bufferLength = serializedObject.FindProperty("_bufferLength");
+            _queueLength = serializedObject.FindProperty("_queueLength");
+            _lowLatencyMode = serializedObject.FindProperty("_lowLatencyMode");
 
             var devices = DeviceManager.GetDeviceNames();
             _deviceLabels = devices.Select((x) => new GUIContent(x)).ToArray();
-            _deviceOptions = Enumerable.Range(0, devices.Length).ToArray();
+            _deviceValues = Enumerable.Range(0, devices.Length).ToArray();
 
             CacheFormats(_deviceSelection.intValue);
         }
@@ -50,21 +51,16 @@ namespace Klinker
             serializedObject.Update();
 
             EditorGUI.BeginChangeCheck();
+            EditorGUILayout.IntPopup(_deviceSelection, _deviceLabels, _deviceValues, _labelDevice);
+            if (EditorGUI.EndChangeCheck()) CacheFormats(_deviceSelection.intValue);
 
-            EditorGUILayout.IntPopup
-                (_deviceSelection, _deviceLabels, _deviceOptions, _labelDevice);
+            EditorGUILayout.IntPopup(_formatSelection, _formatLabels, _formatValues, _labelFormat);
 
-            if (EditorGUI.EndChangeCheck())
-                CacheFormats(_deviceSelection.intValue);
-
-            EditorGUILayout.IntPopup
-                (_formatSelection, _formatLabels, _formatOptions, _labelFormat);
-
-            EditorGUILayout.PropertyField(_bufferLength);
+            EditorGUILayout.PropertyField(_queueLength);
+            EditorGUILayout.PropertyField(_lowLatencyMode);
 
             var genlocked = ((FrameSender)target).IsReferenceLocked;
-            EditorGUILayout.LabelField
-                ("Reference Status", genlocked ? "Genlock Enabled" : "-");
+            EditorGUILayout.LabelField("Reference Status", genlocked ? "Genlock Enabled" : "-");
 
             serializedObject.ApplyModifiedProperties();
         }

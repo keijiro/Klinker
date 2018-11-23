@@ -13,15 +13,15 @@ namespace Klinker
 
         [SerializeField] int _deviceSelection = 0;
         [SerializeField] int _formatSelection = 0;
-        [SerializeField, Range(0, 10)] int _bufferLength = 2;
+        [SerializeField, Range(0, 10)] int _queueLength = 2;
+        [SerializeField] bool _lowLatencyMode = false;
 
         #endregion
 
         #region Public properties
 
         public bool IsReferenceLocked { get {
-            return _plugin != IntPtr.Zero &&
-                PluginEntry.IsSenderReferenceLocked(_plugin) != 0;
+            return _plugin != IntPtr.Zero && PluginEntry.IsSenderReferenceLocked(_plugin) != 0;
         } }
 
         #endregion
@@ -29,29 +29,10 @@ namespace Klinker
         #region Private members
 
         IntPtr _plugin;
-
-        Queue<AsyncGPUReadbackRequest> _frameQueue
-            = new Queue<AsyncGPUReadbackRequest>();
-
+        Queue<AsyncGPUReadbackRequest> _frameQueue = new Queue<AsyncGPUReadbackRequest>();
         Material _encoderMaterial;
 
-        #endregion
-
-        #region MonoBehaviour implementation
-
-        void Start()
-        {
-            _plugin = PluginEntry.CreateSender(_deviceSelection, _formatSelection, _bufferLength);
-            _encoderMaterial = new Material(Shader.Find("Hidden/Klinker/Encoder"));
-        }
-
-        void OnDestroy()
-        {
-            PluginEntry.DestroySender(_plugin);
-            Destroy(_encoderMaterial);
-        }
-
-        void Update()
+        void ProcessQueue(bool sync)
         {
             while (_frameQueue.Count > 0)
             {
@@ -65,22 +46,47 @@ namespace Klinker
                     continue;
                 }
 
-                // Break when found a frame that hasn't been read back yet.
-                if (!frame.done) break;
-
-                // Okay, we're going to send this frame.
-
-                // Feed the frame data to the sender.
-                unsafe {
-                    PluginEntry.UpdateSenderFrame(
-                        _plugin,
-                        (IntPtr)frame.GetData<Byte>().GetUnsafeReadOnlyPtr()
-                    );
+                if (sync)
+                {
+                    // sync = on: Wait for completion every time.
+                    frame.WaitForCompletion();
+                }
+                else
+                {
+                    // sync = off: Break if a request hasn't been completed.
+                    if (!frame.done) break;
                 }
 
-                // Done. Remove the frame from the queue.
+                // Feed the frame data to the plugin.
+                unsafe {
+                    var pointer = frame.GetData<Byte>().GetUnsafeReadOnlyPtr();
+                    PluginEntry.UpdateSenderFrame(_plugin, (IntPtr)pointer);
+                }
+
                 _frameQueue.Dequeue();
             }
+        }
+
+        #endregion
+
+        #region MonoBehaviour implementation
+
+        void Start()
+        {
+            _plugin = PluginEntry.CreateSender(_deviceSelection, _formatSelection, _queueLength);
+            _encoderMaterial = new Material(Shader.Find("Hidden/Klinker/Encoder"));
+        }
+
+        void OnDestroy()
+        {
+            PluginEntry.DestroySender(_plugin);
+            Destroy(_encoderMaterial);
+        }
+
+        void Update()
+        {
+            // Normal mode: Process the frame queue without blocking.
+            if (!_lowLatencyMode) ProcessQueue(false);
         }
 
         void OnRenderImage(RenderTexture source, RenderTexture destination)
@@ -93,6 +99,9 @@ namespace Klinker
             Graphics.Blit(source, tempRT, _encoderMaterial, 0);
             _frameQueue.Enqueue(AsyncGPUReadback.Request(tempRT));
             RenderTexture.ReleaseTemporary(tempRT);
+
+            // Low-latency mode: Process the queued request immediately.
+            if (_lowLatencyMode) ProcessQueue(true);
 
             // Through blit
             Graphics.Blit(source, destination);
