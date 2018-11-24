@@ -39,9 +39,16 @@ namespace Klinker
         {
             serializedObject.Update();
 
-            // Device selector with format information
-            EditorGUILayout.IntPopup(_deviceSelection, _deviceLabels, _deviceOptions, _labelDevice);
-            EditorGUILayout.LabelField("Format", ((FrameReceiver)target).formatName);
+            if (_deviceLabels.Length > 0)
+            {
+                // Device selector with format information
+                EditorGUILayout.IntPopup(_deviceSelection, _deviceLabels, _deviceOptions, _labelDevice);
+                EditorGUILayout.LabelField("Format", ((FrameReceiver)target).formatName);
+            }
+            else
+            {
+                EditorGUILayout.HelpBox("No capture device found.", MessageType.Info);
+            }
 
             // Target texture/renderer
             EditorGUILayout.PropertyField(_targetTexture);

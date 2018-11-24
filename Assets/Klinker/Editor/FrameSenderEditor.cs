@@ -39,6 +39,7 @@ namespace Klinker
             _queueLength = serializedObject.FindProperty("_queueLength");
             _lowLatencyMode = serializedObject.FindProperty("_lowLatencyMode");
 
+            // Scan all available devices.
             var devices = DeviceManager.GetDeviceNames();
             _deviceLabels = devices.Select((x) => new GUIContent(x)).ToArray();
             _deviceValues = Enumerable.Range(0, devices.Length).ToArray();
@@ -50,15 +51,26 @@ namespace Klinker
         {
             serializedObject.Update();
 
-            EditorGUI.BeginChangeCheck();
-            EditorGUILayout.IntPopup(_deviceSelection, _deviceLabels, _deviceValues, _labelDevice);
-            if (EditorGUI.EndChangeCheck()) CacheFormats(_deviceSelection.intValue);
+            if (_deviceLabels.Length > 0)
+            {
+                // Device selector
+                EditorGUI.BeginChangeCheck();
+                EditorGUILayout.IntPopup(_deviceSelection, _deviceLabels, _deviceValues, _labelDevice);
+                if (EditorGUI.EndChangeCheck()) CacheFormats(_deviceSelection.intValue);
 
-            EditorGUILayout.IntPopup(_formatSelection, _formatLabels, _formatValues, _labelFormat);
+                // Format selector
+                EditorGUILayout.IntPopup(_formatSelection, _formatLabels, _formatValues, _labelFormat);
+            }
+            else
+            {
+                EditorGUILayout.HelpBox("No capture device found.", MessageType.Info);
+            }
 
+            // Options
             EditorGUILayout.PropertyField(_queueLength);
             EditorGUILayout.PropertyField(_lowLatencyMode);
 
+            // Genlock status display
             var genlocked = ((FrameSender)target).IsReferenceLocked;
             EditorGUILayout.LabelField("Reference Status", genlocked ? "Genlock Enabled" : "-");
 
