@@ -6,36 +6,62 @@ namespace Klinker
 {
     public class FrameReceiver : MonoBehaviour
     {
-        #region Editable attributes
+        #region Device settings
 
         [SerializeField] int _deviceSelection = 0;
 
         #endregion
 
-        #region Private members
+        #region Target settings
 
-        System.IntPtr _receiver;
+        [SerializeField] RenderTexture _targetTexture;
 
-        Texture2D _receivedTexture;
-        RenderTexture _decodedTexture;
+        public RenderTexture targetTexture {
+            get { return _targetTexture; }
+            set { _targetTexture = value; }
+        }
 
-        CommandBuffer _command;
-        Material _material;
+        [SerializeField] Renderer _targetRenderer;
+
+        public Renderer targetRenderer {
+            get { return _targetRenderer; }
+            set { _targetRenderer = value; }
+        }
+
+        [SerializeField] string _targetMaterialProperty;
+
+        public string targetMaterialProperty {
+            get { return _targetMaterialProperty; }
+            set { _targetMaterialProperty = value; }
+        }
 
         #endregion
 
-        #region Public property
+        #region Runtime properties
+
+        RenderTexture _receivedTexture;
+
+        public Texture receivedTexture { get {
+            return _targetTexture != null ? _targetTexture : _receivedTexture;
+        } }
 
         static byte[] _nameBuffer = new byte[256];
 
-        public string FormatName {
-            get {
-                if (_receiver == System.IntPtr.Zero) return "-";
-                var bstr = PluginEntry.GetReceiverFormatName(_receiver);
-                if (bstr == System.IntPtr.Zero) return "-";
-                return Marshal.PtrToStringBSTR(bstr);
-            }
-        }
+        public string formatName { get {
+            if (_plugin == System.IntPtr.Zero) return "-";
+            var bstr = PluginEntry.GetReceiverFormatName(_plugin);
+            if (bstr == System.IntPtr.Zero) return "-";
+            return Marshal.PtrToStringBSTR(bstr);
+        } }
+
+        #endregion
+
+        #region Private members
+
+        System.IntPtr _plugin;
+        Texture2D _sourceTexture;
+        Material _blitMaterial;
+        MaterialPropertyBlock _propertyBlock;
 
         #endregion
 
@@ -43,63 +69,71 @@ namespace Klinker
 
         void Start()
         {
-            _receiver = PluginEntry.CreateReceiver(_deviceSelection, 0);
-            _command = new CommandBuffer();
-            _material = new Material(Shader.Find("Hidden/Klinker/Decoder"));
+            _plugin = PluginEntry.CreateReceiver(_deviceSelection, 0);
+            _blitMaterial = new Material(Shader.Find("Hidden/Klinker/Decoder"));
         }
 
         void OnDestroy()
         {
-            if (_receivedTexture != null) Destroy(_receivedTexture);
-            if (_decodedTexture != null) Destroy(_decodedTexture);
-
-            _command.Dispose();
-            Destroy(_material);
-
-            PluginEntry.DestroyReceiver(_receiver);
+            PluginEntry.DestroyReceiver(_plugin);
+            Util.Destroy(_sourceTexture);
+            Util.Destroy(_receivedTexture);
+            Util.Destroy(_blitMaterial);
         }
 
         void Update()
         {
-            var width = PluginEntry.GetReceiverFrameWidth(_receiver);
-            var height = PluginEntry.GetReceiverFrameHeight(_receiver);
+            var width = PluginEntry.GetReceiverFrameWidth(_plugin);
+            var height = PluginEntry.GetReceiverFrameHeight(_plugin);
 
-            // Destroy texture objects when the dimensions were changed.
-            if (_receivedTexture != null &&
-                _receivedTexture.width != width / 2 &&
-                _receivedTexture.height != height)
+            // Renew texture objects when the frame dimensions were changed.
+            if (_sourceTexture != null &&
+                (_sourceTexture.width != width / 2 ||
+                 _sourceTexture.height != height))
             {
-                Destroy(_receivedTexture);
-                Destroy(_decodedTexture);
+                Util.Destroy(_sourceTexture);
+                Util.Destroy(_receivedTexture);
+                _sourceTexture = null;
                 _receivedTexture = null;
-                _decodedTexture = null;
             }
 
-            // Lazy texture initialization
-            if (_receivedTexture == null)
+            // Source texture lazy initialization
+            if (_sourceTexture == null)
             {
-                _receivedTexture = new Texture2D
-                    (width / 2, height, TextureFormat.ARGB32, false);
-                _receivedTexture.filterMode = FilterMode.Point;
-                _decodedTexture = new RenderTexture(width, height, 0);
-                _decodedTexture.wrapMode = TextureWrapMode.Clamp;
+                _sourceTexture = new Texture2D(width / 2, height);
+                _sourceTexture.filterMode = FilterMode.Point;
             }
 
             // Request texture update via the command buffer.
-            _command.IssuePluginCustomTextureUpdateV2(
-                PluginEntry.GetTextureUpdateCallback(), _receivedTexture,
-                PluginEntry.GetReceiverID(_receiver)
+            Util.IssueTextureUpdateEvent(
+                PluginEntry.GetTextureUpdateCallback(),
+                _sourceTexture,
+                PluginEntry.GetReceiverID(_plugin)
             );
-            Graphics.ExecuteCommandBuffer(_command);
-            _command.Clear();
 
-            // Decode the received texture.
-            Graphics.Blit(_receivedTexture, _decodedTexture, _material, 0);
+            // Receiver texture lazy initialization
+            if (_targetTexture == null && _receivedTexture == null)
+            {
+                _receivedTexture = new RenderTexture(width, height, 0);
+                _receivedTexture.wrapMode = TextureWrapMode.Clamp;
+            }
 
-            // Set the texture to the renderer with using a property block.
-            var prop = new MaterialPropertyBlock();
-            prop.SetTexture("_MainTex", _decodedTexture);
-            GetComponent<Renderer>().SetPropertyBlock(prop);
+            // Chroma upsampling
+            var receiver = _targetTexture != null ? _targetTexture : _receivedTexture;
+            Graphics.Blit(_sourceTexture, receiver, _blitMaterial, 0);
+            receiver.IncrementUpdateCount();
+
+            // Renderer override
+            if (_targetRenderer != null)
+            {
+                // Material property block lazy initialization
+                if (_propertyBlock == null) _propertyBlock = new MaterialPropertyBlock();
+
+                // Read-modify-write
+                _targetRenderer.GetPropertyBlock(_propertyBlock);
+                _propertyBlock.SetTexture(_targetMaterialProperty, receiver);
+                _targetRenderer.SetPropertyBlock(_propertyBlock);
+            }
         }
 
         #endregion
