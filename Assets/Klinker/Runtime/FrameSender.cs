@@ -29,20 +29,21 @@ namespace Klinker
         #region Private members
 
         IntPtr _plugin;
-        Queue<AsyncGPUReadbackRequest> _frameQueue = new Queue<AsyncGPUReadbackRequest>();
-        Material _encoderMaterial;
+        Queue<AsyncGPUReadbackRequest> _queue = new Queue<AsyncGPUReadbackRequest>();
+        RenderTexture _fielding;
+        Material _material;
 
         void ProcessQueue(bool sync)
         {
-            while (_frameQueue.Count > 0)
+            while (_queue.Count > 0)
             {
-                var frame = _frameQueue.Peek();
+                var frame = _queue.Peek();
 
                 // Skip error frames.
                 if (frame.hasError)
                 {
                     Debug.LogWarning("GPU readback error was detected.");
-                    _frameQueue.Dequeue();
+                    _queue.Dequeue();
                     continue;
                 }
 
@@ -53,7 +54,7 @@ namespace Klinker
                 }
                 else
                 {
-                    // sync = off: Break if a request hasn't been completed.
+                    // sync = off: Break if the request hasn't been completed.
                     if (!frame.done) break;
                 }
 
@@ -63,7 +64,7 @@ namespace Klinker
                     PluginEntry.UpdateSenderFrame(_plugin, (IntPtr)pointer);
                 }
 
-                _frameQueue.Dequeue();
+                _queue.Dequeue();
             }
         }
 
@@ -74,13 +75,13 @@ namespace Klinker
         void Start()
         {
             _plugin = PluginEntry.CreateSender(_deviceSelection, _formatSelection, _queueLength);
-            _encoderMaterial = new Material(Shader.Find("Hidden/Klinker/Encoder"));
+            _material = new Material(Shader.Find("Hidden/Klinker/Encoder"));
         }
 
         void OnDestroy()
         {
             PluginEntry.DestroySender(_plugin);
-            Destroy(_encoderMaterial);
+            Destroy(_material);
         }
 
         void Update()
@@ -91,17 +92,51 @@ namespace Klinker
 
         void OnRenderImage(RenderTexture source, RenderTexture destination)
         {
-            // Blit to a temporary RT and request a readback on it.
-            var tempRT = RenderTexture.GetTemporary(
-                PluginEntry.GetSenderFrameWidth(_plugin) / 2,
-                PluginEntry.GetSenderFrameHeight(_plugin)
-            );
-            Graphics.Blit(source, tempRT, _encoderMaterial, 0);
-            _frameQueue.Enqueue(AsyncGPUReadback.Request(tempRT));
-            RenderTexture.ReleaseTemporary(tempRT);
+            RenderTexture frame = null;
 
-            // Low-latency mode: Process the queued request immediately.
-            if (_lowLatencyMode) ProcessQueue(true);
+            if (PluginEntry.IsSenderProgressive(_plugin) != 0)
+            {
+                // Progressive mode: Request readback every frame.
+                frame = RenderTexture.GetTemporary(
+                    PluginEntry.GetSenderFrameWidth(_plugin) / 2,
+                    PluginEntry.GetSenderFrameHeight(_plugin)
+                );
+                Graphics.Blit(source, frame, _material, 0);
+            }
+            else
+            {
+                // Interlace mode
+                if (_fielding == null)
+                {
+                    // Odd frame: Make a copy of this frame with a fielding buffer.
+                    _fielding = RenderTexture.GetTemporary(source.width, source.height);
+                    Graphics.Blit(source, _fielding);
+                }
+                else
+                {
+                    // Even frame: Interlace and request readback.
+                    frame = RenderTexture.GetTemporary(
+                        PluginEntry.GetSenderFrameWidth(_plugin) / 2,
+                        PluginEntry.GetSenderFrameHeight(_plugin)
+                    );
+                    _material.SetTexture("_FieldTex", _fielding);
+                    Graphics.Blit(source, frame, _material, 1);
+
+                    // Release the fielding buffer.
+                    RenderTexture.ReleaseTemporary(_fielding);
+                    _fielding = null;
+                }
+            }
+
+            if (frame != null)
+            {
+                // Async readback request
+                _queue.Enqueue(AsyncGPUReadback.Request(frame));
+                RenderTexture.ReleaseTemporary(frame);
+
+                // Low-latency mode: Process the queued request immediately.
+                if (_lowLatencyMode) ProcessQueue(true);
+            }
 
             // Through blit
             Graphics.Blit(source, destination);

@@ -157,6 +157,12 @@ extern "C" int UNITY_INTERFACE_EXPORT GetSenderFrameHeight(void* sender)
     return std::get<1>(instance->GetFrameDimensions());
 }
 
+extern "C" int UNITY_INTERFACE_EXPORT IsSenderProgressive(void* sender)
+{
+    auto instance = reinterpret_cast<klinker::Sender*>(sender);
+    return instance->IsProgressive() ? 1 : 0;
+}
+
 extern "C" int UNITY_INTERFACE_EXPORT IsSenderReferenceLocked(void* sender)
 {
     auto instance = reinterpret_cast<klinker::Sender*>(sender);

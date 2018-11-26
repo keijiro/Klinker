@@ -40,6 +40,9 @@ namespace Klinker
         public static extern int GetSenderFrameHeight(IntPtr sender);
 
         [DllImport("Klinker")]
+        public static extern int IsSenderProgressive(IntPtr sender);
+
+        [DllImport("Klinker")]
         public static extern int IsSenderReferenceLocked(IntPtr sender);
 
         [DllImport("Klinker")]

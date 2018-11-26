@@ -40,6 +40,12 @@ namespace klinker
             return { displayMode_->GetWidth(), displayMode_->GetHeight() };
         }
 
+        bool IsProgressive() const
+        {
+            assert(displayMode_ != nullptr);
+            return displayMode_->GetFieldDominance() == bmdProgressiveFrame;
+        }
+
         bool IsReferenceLocked() const
         {
             BMDReferenceStatus stat;
