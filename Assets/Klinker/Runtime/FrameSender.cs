@@ -2,6 +2,7 @@ using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 using UnityEngine.Rendering;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 
 namespace Klinker
@@ -15,12 +16,13 @@ namespace Klinker
         [SerializeField] int _formatSelection = 0;
         [SerializeField, Range(0, 10)] int _queueLength = 2;
         [SerializeField] bool _lowLatencyMode = false;
+        [SerializeField] bool _isMaster = false;
 
         #endregion
 
         #region Public properties
 
-        public bool IsReferenceLocked { get {
+        public bool isReferenceLocked { get {
             return _plugin != IntPtr.Zero && PluginEntry.IsSenderReferenceLocked(_plugin) != 0;
         } }
 
@@ -32,6 +34,7 @@ namespace Klinker
         Queue<AsyncGPUReadbackRequest> _queue = new Queue<AsyncGPUReadbackRequest>();
         RenderTexture _fielding;
         Material _material;
+        ulong _frameCount;
 
         void ProcessQueue(bool sync)
         {
@@ -61,8 +64,9 @@ namespace Klinker
                 // Feed the frame data to the plugin.
                 unsafe {
                     var pointer = frame.GetData<Byte>().GetUnsafeReadOnlyPtr();
-                    PluginEntry.UpdateSenderFrame(_plugin, (IntPtr)pointer);
+                    PluginEntry.EnqueueSenderFrame(_plugin, (IntPtr)pointer);
                 }
+                _frameCount++;
 
                 _queue.Dequeue();
             }
@@ -72,10 +76,24 @@ namespace Klinker
 
         #region MonoBehaviour implementation
 
-        void Start()
+        IEnumerator Start()
         {
-            _plugin = PluginEntry.CreateSender(_deviceSelection, _formatSelection, _queueLength);
+            _plugin = PluginEntry.CreateSender(_deviceSelection, _formatSelection);
             _material = new Material(Shader.Find("Hidden/Klinker/Encoder"));
+
+            if (_isMaster)
+            {
+                Time.captureFramerate = 60;
+
+                var eof = new WaitForEndOfFrame();
+
+                while (true)
+                {
+                    yield return eof;
+                    if (_frameCount > 10)
+                        PluginEntry.WaitSenderCompletion(_plugin, _frameCount - (ulong)_queueLength);
+                }
+            }
         }
 
         void OnDestroy()

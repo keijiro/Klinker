@@ -410,8 +410,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _deviceSelection: 0
-  _formatSelection: 8
-  _bufferLength: 2
+  _formatSelection: 9
+  _queueLength: 3
+  _lowLatencyMode: 1
+  _isMaster: 1
 --- !u!20 &1519612757
 Camera:
   m_ObjectHideFlags: 0
@@ -481,7 +483,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _text: {fileID: 627397124}
-  _flash: 1
+  _flash: 0
   _shader: {fileID: 4800000, guid: e3e9ec88589b78d4984611c8047fc269, type: 3}
 --- !u!1 &1892922319
 GameObject:

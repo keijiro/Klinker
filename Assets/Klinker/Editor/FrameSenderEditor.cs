@@ -11,6 +11,7 @@ namespace Klinker
         SerializedProperty _formatSelection;
         SerializedProperty _queueLength;
         SerializedProperty _lowLatencyMode;
+        SerializedProperty _isMaster;
 
         GUIContent[] _deviceLabels;
         GUIContent[] _formatLabels;
@@ -38,6 +39,7 @@ namespace Klinker
             _formatSelection = serializedObject.FindProperty("_formatSelection");
             _queueLength = serializedObject.FindProperty("_queueLength");
             _lowLatencyMode = serializedObject.FindProperty("_lowLatencyMode");
+            _isMaster = serializedObject.FindProperty("_isMaster");
 
             // Scan all available devices.
             var devices = DeviceManager.GetDeviceNames();
@@ -69,9 +71,10 @@ namespace Klinker
             // Options
             EditorGUILayout.PropertyField(_queueLength);
             EditorGUILayout.PropertyField(_lowLatencyMode);
+            EditorGUILayout.PropertyField(_isMaster);
 
             // Genlock status display
-            var genlocked = ((FrameSender)target).IsReferenceLocked;
+            var genlocked = ((FrameSender)target).isReferenceLocked;
             EditorGUILayout.LabelField("Reference Status", genlocked ? "Genlock Enabled" : "-");
 
             serializedObject.ApplyModifiedProperties();

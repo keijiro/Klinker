@@ -27,8 +27,7 @@ namespace Klinker
         #region Sender functions
 
         [DllImport("Klinker")]
-        public static extern IntPtr
-            CreateSender(int device, int format, int preroll);
+        public static extern IntPtr CreateSender(int device, int format);
 
         [DllImport("Klinker")]
         public static extern void DestroySender(IntPtr sender);
@@ -46,7 +45,10 @@ namespace Klinker
         public static extern int IsSenderReferenceLocked(IntPtr sender);
 
         [DllImport("Klinker")]
-        public static extern void UpdateSenderFrame(IntPtr sender, IntPtr data);
+        public static extern void EnqueueSenderFrame(IntPtr sender, IntPtr data);
+
+        [DllImport("Klinker")]
+        public static extern void WaitSenderCompletion(IntPtr sender, ulong frame);
 
         #endregion
 

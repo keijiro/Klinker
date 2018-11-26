@@ -131,10 +131,10 @@ extern "C" void UNITY_INTERFACE_EXPORT * GetReceiverFormatName(void* receiver)
 
 #pragma region Sender plugin functions
 
-extern "C" void UNITY_INTERFACE_EXPORT * CreateSender(int device, int format, int preroll)
+extern "C" void UNITY_INTERFACE_EXPORT * CreateSender(int device, int format)
 {
     auto instance = new klinker::Sender();
-    instance->StartSending(device, format, preroll);
+    instance->StartSending(device, format);
     return instance;
 }
 
@@ -169,10 +169,16 @@ extern "C" int UNITY_INTERFACE_EXPORT IsSenderReferenceLocked(void* sender)
     return instance->IsReferenceLocked() ? 1 : 0;
 }
 
-extern "C" void UNITY_INTERFACE_EXPORT UpdateSenderFrame(void* sender, void* data)
+extern "C" void UNITY_INTERFACE_EXPORT EnqueueSenderFrame(void* sender, void* data)
 {
     auto instance = reinterpret_cast<klinker::Sender*>(sender);
-    instance->UpdateFrame(data);
+    instance->EnqueueFrame(data);
+}
+
+extern "C" void UNITY_INTERFACE_EXPORT WaitSenderCompletion(void* sender, std::uint64_t frame)
+{
+    auto instance = reinterpret_cast<klinker::Sender*>(sender);
+    instance->WaitCompletion(frame);
 }
 
 #pragma endregion

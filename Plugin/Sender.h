@@ -2,6 +2,7 @@
 
 #include "Common.h"
 #include <atomic>
+#include <condition_variable>
 #include <mutex>
 #include <tuple>
 
@@ -15,19 +16,11 @@ namespace klinker
 
         #pragma region Constructor/destructor
 
-        Sender()
-            : refCount_(1),
-              output_(nullptr), displayMode_(nullptr), frame_(nullptr),
-              frameDuration_(0), timeScale_(1), frameCount_(0)
-        {
-        }
-
         ~Sender()
         {
             // Internal objects should have been released.
             assert(output_ == nullptr);
             assert(displayMode_ == nullptr);
-            assert(frame_ == nullptr);
         }
 
         #pragma endregion
@@ -57,17 +50,13 @@ namespace klinker
 
         #pragma region Public methods
 
-        void StartSending(int deviceIndex, int formatIndex, int preroll)
+        void StartSending(int deviceIndex, int formatIndex)
         {
             assert(output_ == nullptr);
             assert(displayMode_ == nullptr);
-            assert(frame_ == nullptr);
 
             // Initialize a video output.
             InitializeOutput(deviceIndex, formatIndex);
-
-            // Create a working frame buffer.
-            frame_ = AllocateFrame();
 
             // Start getting callback from the video output.
             AssertSuccess(output_->SetScheduledFrameCompletionCallback(this));
@@ -77,9 +66,6 @@ namespace klinker
                 displayMode_->GetDisplayMode(), bmdVideoOutputFlagDefault
             ));
 
-            // Prerolling with blank frames.
-            for (auto i = 0; i < preroll; i++) ScheduleFrame(frame_);
-
             // Start scheduled playback.
             AssertSuccess(output_->StartScheduledPlayback(0, 1, 1));
         }
@@ -88,7 +74,6 @@ namespace klinker
         {
             assert(output_ != nullptr);
             assert(displayMode_ != nullptr);
-            assert(frame_ != nullptr);
 
             // Stop the output stream.
             output_->StopScheduledPlayback(0, nullptr, 1);
@@ -96,34 +81,45 @@ namespace klinker
             output_->DisableVideoOutput();
 
             // Release the internal objects.
-            frame_->Release();
-            frame_ = nullptr;
             displayMode_->Release();
             displayMode_ = nullptr;
             output_->Release();
             output_ = nullptr;
         }
 
-        void UpdateFrame(void* data)
+        void EnqueueFrame(void* data)
         {
             assert(output_ != nullptr);
             assert(displayMode_ != nullptr);
-            assert(frame_ != nullptr);
+
+            auto width = displayMode_->GetWidth();
+            auto height = displayMode_->GetHeight();
 
             // Allocate a new frame.
-            IDeckLinkMutableVideoFrame* newFrame = AllocateFrame();
+            IDeckLinkMutableVideoFrame* frame;
+            AssertSuccess(output_->CreateVideoFrame(
+                width, height, width * 2, bmdFormat8BitYUV, bmdFrameFlagDefault, &frame
+            ));
 
             // Copy the frame data.
             void* pointer;
-            AssertSuccess(newFrame->GetBytes(&pointer));
-            std::size_t size = (std::size_t)2 *
-                displayMode_->GetWidth() * displayMode_->GetHeight();
-            std::memcpy(pointer, data, size);
+            AssertSuccess(frame->GetBytes(&pointer));
+            std::memcpy(pointer, data, (std::size_t)2 * width * height);
 
-            // Release and replace the previous frame object with the new one.
-            std::lock_guard<std::mutex> lock(frameMutex_);
-            frame_->Release();
-            frame_ = newFrame;
+            // Add the frame to the queue.
+            auto time = frameDuration_ * (counters_.queued + counters_.skipped);
+            output_->ScheduleVideoFrame(frame, time, frameDuration_, timeScale_);
+            counters_.queued++;
+
+            // Move the ownership of the frame to the scheduler.
+            frame->Release();
+        }
+
+        void WaitCompletion(std::uint64_t frame)
+        {
+            // Wait for completion of a specified frame.
+            std::unique_lock<std::mutex> lock(mutex_);
+            condition_.wait(lock, [=]() { return counters_.completed >= frame; });
         }
 
         #pragma endregion
@@ -172,16 +168,21 @@ namespace klinker
         ) override
         {
             if (result == bmdOutputFrameDisplayedLate)
+            {
+                // The next frame should be skipped to compensate the delay.
+                counters_.skipped++;
                 std::printf("Frame %p was displayed late.\n", completedFrame);
+            }
 
             if (result == bmdOutputFrameDropped)
+            {
                 std::printf("Frame %p was dropped.\n", completedFrame);
+            }
 
-            // Skip a single frame when DisplayedLate was detected.
-            if (result == bmdOutputFrameDisplayedLate) frameCount_++;
-
-            std::lock_guard<std::mutex> lock(frameMutex_);
-            ScheduleFrame(frame_);
+            // Increment the frame count and notify the main thread.
+            std::lock_guard<std::mutex> lock(mutex_);
+            counters_.completed++;
+            condition_.notify_all();
 
             return S_OK;
         }
@@ -197,36 +198,24 @@ namespace klinker
 
         #pragma region Private members
 
-        std::atomic<ULONG> refCount_;
+        std::atomic<ULONG> refCount_ = 1;
 
-        IDeckLinkOutput* output_;
-        IDeckLinkDisplayMode* displayMode_;
+        IDeckLinkOutput* output_ = nullptr;
+        IDeckLinkDisplayMode* displayMode_ = nullptr;
 
-        IDeckLinkMutableVideoFrame* frame_;
-        std::mutex frameMutex_;
+        BMDTimeValue frameDuration_ = 0;
+        BMDTimeScale timeScale_ = 1;
 
-        BMDTimeValue frameDuration_;
-        BMDTimeScale timeScale_;
-        uint64_t frameCount_;
+        std::mutex mutex_;
+        std::condition_variable condition_;
 
-        IDeckLinkMutableVideoFrame* AllocateFrame()
+        struct
         {
-            IDeckLinkMutableVideoFrame* frame;
-            AssertSuccess(output_->CreateVideoFrame(
-                displayMode_->GetWidth(), displayMode_->GetHeight(),
-                displayMode_->GetWidth() * 2,
-                bmdFormat8BitYUV, bmdFrameFlagDefault, &frame
-            ));
-            return frame;
+            std::uint64_t queued = 0;
+            std::uint64_t completed = 0;
+            std::uint64_t skipped = 0;
         }
-
-        void ScheduleFrame(IDeckLinkVideoFrame* frame)
-        {
-            output_->ScheduleVideoFrame(
-                frame, frameDuration_ * frameCount_++,
-                frameDuration_, timeScale_
-            );
-        }
+        counters_;
 
         void InitializeOutput(int deviceIndex, int formatIndex)
         {
