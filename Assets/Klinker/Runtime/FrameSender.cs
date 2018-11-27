@@ -1,7 +1,5 @@
-using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 using UnityEngine.Rendering;
-using System;
 using System.Collections;
 using System.Collections.Generic;
 
@@ -24,14 +22,14 @@ namespace Klinker
         #region Public properties
 
         public bool isReferenceLocked { get {
-            return _plugin != IntPtr.Zero && PluginEntry.IsSenderReferenceLocked(_plugin) != 0;
+            return _plugin?.IsReferenceLocked ?? false;
         } }
 
         #endregion
 
         #region Private members
 
-        IntPtr _plugin;
+        SenderPlugin _plugin;
         Queue<AsyncGPUReadbackRequest> _queue = new Queue<AsyncGPUReadbackRequest>();
         RenderTexture _fielding;
         Material _material;
@@ -63,10 +61,7 @@ namespace Klinker
                 }
 
                 // Feed the frame data to the plugin.
-                unsafe {
-                    var pointer = frame.GetData<Byte>().GetUnsafeReadOnlyPtr();
-                    PluginEntry.EnqueueSenderFrame(_plugin, (IntPtr)pointer);
-                }
+                _plugin.EnqueueFrame(frame.GetData<byte>());
                 _frameCount++;
 
                 _queue.Dequeue();
@@ -79,13 +74,13 @@ namespace Klinker
 
         IEnumerator Start()
         {
-            _plugin = PluginEntry.CreateSender(_deviceSelection, _formatSelection);
+            _plugin = new SenderPlugin(_deviceSelection, _formatSelection);
             _material = new Material(Shader.Find("Hidden/Klinker/Encoder"));
 
             if (_isMaster)
             {
-                var fps = Mathf.CeilToInt(PluginEntry.GetSenderFrameRate(_plugin));
-                if (PluginEntry.IsSenderProgressive(_plugin) == 0) fps *= 2;
+                var fps = Mathf.CeilToInt(_plugin.FrameRate);
+                if (_plugin.IsProgressive) fps *= 2;
                 Time.captureFramerate = fps;
 
                 var eof = new WaitForEndOfFrame();
@@ -94,14 +89,14 @@ namespace Klinker
                 {
                     yield return eof;
                     if (_frameCount > 10)
-                        PluginEntry.WaitSenderCompletion(_plugin, _frameCount - (ulong)_queueLength);
+                        _plugin.WaitCompletion(_frameCount - (ulong)_queueLength);
                 }
             }
         }
 
         void OnDestroy()
         {
-            PluginEntry.DestroySender(_plugin);
+            _plugin.Dispose();
             Destroy(_material);
         }
 
@@ -113,15 +108,14 @@ namespace Klinker
 
         void OnRenderImage(RenderTexture source, RenderTexture destination)
         {
+            var dimensions = _plugin.FrameDimensions;
+
             RenderTexture frame = null;
 
-            if (PluginEntry.IsSenderProgressive(_plugin) != 0)
+            if (_plugin.IsProgressive)
             {
                 // Progressive mode: Request readback every frame.
-                frame = RenderTexture.GetTemporary(
-                    PluginEntry.GetSenderFrameWidth(_plugin) / 2,
-                    PluginEntry.GetSenderFrameHeight(_plugin)
-                );
+                frame = RenderTexture.GetTemporary(dimensions.x / 2, dimensions.y);
                 Graphics.Blit(source, frame, _material, 0);
             }
             else
@@ -136,10 +130,7 @@ namespace Klinker
                 else
                 {
                     // Even frame: Interlace and request readback.
-                    frame = RenderTexture.GetTemporary(
-                        PluginEntry.GetSenderFrameWidth(_plugin) / 2,
-                        PluginEntry.GetSenderFrameHeight(_plugin)
-                    );
+                    frame = RenderTexture.GetTemporary(dimensions.x / 2, dimensions.y);
                     _material.SetTexture("_FieldTex", _fielding);
                     Graphics.Blit(source, frame, _material, 1);
 
