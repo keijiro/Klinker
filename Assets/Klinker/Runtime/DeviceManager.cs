@@ -12,7 +12,7 @@ namespace Klinker
         // string array.
         public static string[] GetDeviceNames()
         {
-            var count = PluginEntry.RetrieveDeviceNames(_pointers, _pointers.Length);
+            var count = EnumeratorPlugin.RetrieveDeviceNames(_pointers, _pointers.Length);
             var names = new string[count];
             for (var i = 0; i < count; i++) names[i] = Marshal.PtrToStringBSTR(_pointers[i]);
             return names;
@@ -23,7 +23,7 @@ namespace Klinker
         public static void GetDeviceNames(ICollection<string> store)
         {
             store.Clear();
-            var count = PluginEntry.RetrieveDeviceNames(_pointers, _pointers.Length);
+            var count = EnumeratorPlugin.RetrieveDeviceNames(_pointers, _pointers.Length);
             for (var i = 0; i < count; i++) store.Add(Marshal.PtrToStringBSTR(_pointers[i]));
         }
 
@@ -31,7 +31,7 @@ namespace Klinker
         // names via a newly allocated string array.
         public static string[] GetOutputFormatNames(int deviceIndex)
         {
-            var count = PluginEntry.RetrieveOutputFormatNames(deviceIndex, _pointers, _pointers.Length);
+            var count = EnumeratorPlugin.RetrieveOutputFormatNames(deviceIndex, _pointers, _pointers.Length);
             var names = new string[count];
             for (var i = 0; i < count; i++) names[i] = Marshal.PtrToStringBSTR(_pointers[i]);
             return names;
@@ -42,7 +42,7 @@ namespace Klinker
         public static void GetDeviceNames(int deviceIndex, ICollection<string> store)
         {
             store.Clear();
-            var count = PluginEntry.RetrieveOutputFormatNames (deviceIndex, _pointers, _pointers.Length);
+            var count = EnumeratorPlugin.RetrieveOutputFormatNames (deviceIndex, _pointers, _pointers.Length);
             for (var i = 0; i < count; i++) store.Add(Marshal.PtrToStringBSTR(_pointers[i]));
         }
 

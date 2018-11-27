@@ -1,6 +1,5 @@
 using UnityEngine;
 using UnityEngine.Rendering;
-using System.Runtime.InteropServices;
 
 namespace Klinker
 {
@@ -47,18 +46,13 @@ namespace Klinker
 
         static byte[] _nameBuffer = new byte[256];
 
-        public string formatName { get {
-            if (_plugin == System.IntPtr.Zero) return "-";
-            var bstr = PluginEntry.GetReceiverFormatName(_plugin);
-            if (bstr == System.IntPtr.Zero) return "-";
-            return Marshal.PtrToStringBSTR(bstr);
-        } }
+        public string formatName { get { return _plugin?.FormatName ?? "-"; } }
 
         #endregion
 
         #region Private members
 
-        System.IntPtr _plugin;
+        ReceiverPlugin _plugin;
         Texture2D _sourceTexture;
         Material _blitMaterial;
         MaterialPropertyBlock _propertyBlock;
@@ -69,13 +63,13 @@ namespace Klinker
 
         void Start()
         {
-            _plugin = PluginEntry.CreateReceiver(_deviceSelection, 0);
+            _plugin = new ReceiverPlugin(_deviceSelection, 0);
             _blitMaterial = new Material(Shader.Find("Hidden/Klinker/Decoder"));
         }
 
         void OnDestroy()
         {
-            PluginEntry.DestroyReceiver(_plugin);
+            _plugin.Dispose();
             Util.Destroy(_sourceTexture);
             Util.Destroy(_receivedTexture);
             Util.Destroy(_blitMaterial);
@@ -83,13 +77,12 @@ namespace Klinker
 
         void Update()
         {
-            var width = PluginEntry.GetReceiverFrameWidth(_plugin);
-            var height = PluginEntry.GetReceiverFrameHeight(_plugin);
+            var dimensions = _plugin.FrameDimensions;
 
             // Renew texture objects when the frame dimensions were changed.
             if (_sourceTexture != null &&
-                (_sourceTexture.width != width / 2 ||
-                 _sourceTexture.height != height))
+                (_sourceTexture.width != dimensions.x / 2 ||
+                 _sourceTexture.height != dimensions.y))
             {
                 Util.Destroy(_sourceTexture);
                 Util.Destroy(_receivedTexture);
@@ -100,21 +93,19 @@ namespace Klinker
             // Source texture lazy initialization
             if (_sourceTexture == null)
             {
-                _sourceTexture = new Texture2D(width / 2, height);
+                _sourceTexture = new Texture2D(dimensions.x / 2, dimensions.y);
                 _sourceTexture.filterMode = FilterMode.Point;
             }
 
             // Request texture update via the command buffer.
             Util.IssueTextureUpdateEvent(
-                PluginEntry.GetTextureUpdateCallback(),
-                _sourceTexture,
-                PluginEntry.GetReceiverID(_plugin)
+                _plugin.TextureUpdateCallback, _sourceTexture, _plugin.ID
             );
 
             // Receiver texture lazy initialization
             if (_targetTexture == null && _receivedTexture == null)
             {
-                _receivedTexture = new RenderTexture(width, height, 0);
+                _receivedTexture = new RenderTexture(dimensions.x, dimensions.y, 0);
                 _receivedTexture.wrapMode = TextureWrapMode.Clamp;
             }
 
