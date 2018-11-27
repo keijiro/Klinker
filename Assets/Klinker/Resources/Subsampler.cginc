@@ -38,7 +38,7 @@ half4 Fragment_UYVY(v2f_img input) : SV_Target
     half3 yuv3 = RGB2YUV(tex2D(_FieldTex, uv        ).rgb);
     half3 yuv4 = RGB2YUV(tex2D(_FieldTex, uv + ts.xz).rgb);
 
-#ifdef ENCODER_INTERLACE
+#ifdef SUBSAMPLER_INTERLACE
     float iy = input.uv.y * _MainTex_TexelSize.w;
     if (frac(iy / 2) < 0.51)
     {

@@ -149,7 +149,7 @@ namespace Klinker
         {
             // Internal objects initialization
             _plugin = new SenderPlugin(_deviceSelection, _formatSelection);
-            _subsampler = new Material(Shader.Find("Hidden/Klinker/Encoder"));
+            _subsampler = new Material(Shader.Find("Hidden/Klinker/Subsampler"));
 
             var dim = _plugin.FrameDimensions;
 

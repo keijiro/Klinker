@@ -1,4 +1,4 @@
-Shader "Hidden/Klinker/Encoder"
+Shader "Hidden/Klinker/Subsampler"
 {
     Properties
     {
@@ -14,7 +14,7 @@ Shader "Hidden/Klinker/Encoder"
             #pragma vertex vert_img
             #pragma fragment Fragment_UYVY
             #pragma multi_compile _ UNITY_COLORSPACE_GAMMA
-            #include "Encoder.cginc"
+            #include "Subsampler.cginc"
             ENDCG
         }
         Pass
@@ -23,8 +23,8 @@ Shader "Hidden/Klinker/Encoder"
             #pragma vertex vert_img
             #pragma fragment Fragment_UYVY
             #pragma multi_compile _ UNITY_COLORSPACE_GAMMA
-            #define ENCODER_INTERLACE
-            #include "Encoder.cginc"
+            #define SUBSAMPLER_INTERLACE
+            #include "Subsampler.cginc"
             ENDCG
         }
     }
