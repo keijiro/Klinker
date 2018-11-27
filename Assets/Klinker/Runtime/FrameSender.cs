@@ -7,7 +7,7 @@ namespace Klinker
 {
     [AddComponentMenu("Klinker/Frame Sender")]
     [RequireComponent(typeof(Camera))]
-    public class FrameSender : MonoBehaviour
+    public sealed class FrameSender : MonoBehaviour
     {
         #region Editable attributes
 
@@ -27,25 +27,89 @@ namespace Klinker
 
         #endregion
 
-        #region Private members
+        #region Target camera accessors (for internal use)
 
-        SenderPlugin _plugin;
-        Queue<AsyncGPUReadbackRequest> _queue = new Queue<AsyncGPUReadbackRequest>();
-        RenderTexture _fielding;
-        Material _material;
-        ulong _frameCount;
+        Camera _targetCamera;
 
-        void ProcessQueue(bool sync)
+        Camera TargetCamera { get {
+            if (_targetCamera == null) _targetCamera = GetComponent<Camera>();
+            return _targetCamera;
+        } }
+
+        RenderTextureFormat TargetFormat { get {
+            return TargetCamera.allowHDR ?
+                RenderTextureFormat.DefaultHDR : RenderTextureFormat.Default;
+        } }
+
+        int TargetAALevel { get {
+            return TargetCamera.allowMSAA ? QualitySettings.antiAliasing : 1;
+        } }
+
+        #endregion
+
+        #region Frame format conversion
+
+        Material _subsampler;
+        RenderTexture _oddField;
+
+        RenderTexture EncodeFrame(RenderTexture source)
         {
-            while (_queue.Count > 0)
+            var dim = _plugin.FrameDimensions;
+
+            // Progressive mode: Simply applies the chroma subsampler.
+            if (_plugin.IsProgressive)
             {
-                var frame = _queue.Peek();
+                var frame = RenderTexture.GetTemporary(dim.x / 2, dim.y);
+                Graphics.Blit(source, frame, _subsampler, 0);
+                return frame;
+            }
+
+            // Interlace mode
+
+            if (_oddField == null)
+            {
+                // Odd field: Make a copy of this frame to _oddField.
+                _oddField = RenderTexture.GetTemporary(dim.x, dim.y);
+                Graphics.Blit(source, _oddField);
+                return null;
+            }
+            else
+            {
+                // Even field: Interlacing and chroma subsampling
+                var frame = RenderTexture.GetTemporary(dim.x / 2, dim.y);
+                _subsampler.SetTexture("_FieldTex", _oddField);
+                Graphics.Blit(source, frame, _subsampler, 1);
+
+                // Release the odd field.
+                RenderTexture.ReleaseTemporary(_oddField);
+                _oddField = null;
+
+                return frame;
+            }
+        }
+
+        #endregion
+
+        #region Frame readback queue
+
+        Queue<AsyncGPUReadbackRequest> _frameQueue = new Queue<AsyncGPUReadbackRequest>();
+
+        void PushFrame(RenderTexture frame)
+        {
+            _frameQueue.Enqueue(AsyncGPUReadback.Request(frame));
+        }
+
+        void ProcessFrameQueue(bool sync)
+        {
+            while (_frameQueue.Count > 0)
+            {
+                var frame = _frameQueue.Peek();
 
                 // Skip error frames.
                 if (frame.hasError)
                 {
                     Debug.LogWarning("GPU readback error was detected.");
-                    _queue.Dequeue();
+                    _frameQueue.Dequeue();
                     continue;
                 }
 
@@ -64,9 +128,18 @@ namespace Klinker
                 _plugin.EnqueueFrame(frame.GetData<byte>());
                 _frameCount++;
 
-                _queue.Dequeue();
+                _frameQueue.Dequeue();
             }
         }
+
+        #endregion
+
+        #region Private members
+
+        SenderPlugin _plugin;
+        RenderTexture _targetRT;
+        GameObject _blitter;
+        ulong _frameCount;
 
         #endregion
 
@@ -74,84 +147,84 @@ namespace Klinker
 
         IEnumerator Start()
         {
+            // Internal objects initialization
             _plugin = new SenderPlugin(_deviceSelection, _formatSelection);
-            _material = new Material(Shader.Find("Hidden/Klinker/Encoder"));
+            _subsampler = new Material(Shader.Find("Hidden/Klinker/Encoder"));
 
-            if (_isMaster)
+            var dim = _plugin.FrameDimensions;
+
+            // If the target camera doesn't have a target texture, create
+            // a RT and set it as a target texture. Also create a blitter
+            // object to keep frames presented on the screen.
+            if (TargetCamera.targetTexture == null)
             {
-                var fps = Mathf.CeilToInt(_plugin.FrameRate);
-                if (_plugin.IsProgressive) fps *= 2;
-                Time.captureFramerate = fps;
+                _targetRT = new RenderTexture(dim.x, dim.y, 24, TargetFormat);
+                _targetRT.antiAliasing = TargetAALevel;
+                TargetCamera.targetTexture = _targetRT;
+                _blitter = Blitter.CreateInstance(TargetCamera);
+            }
+            else
+            {
+                // Make sure if the target texture has the correct dimensions.
+                var rt = TargetCamera.targetTexture;
+                if (rt.width != dim.x || rt.height != dim.y)
+                    Debug.LogError(
+                        "Target texture size mismatch. It should be " +
+                        dim.x + " x " + dim.y
+                    );
+            }
 
-                var eof = new WaitForEndOfFrame();
+            if (!_isMaster) yield break;
 
-                while (true)
-                {
-                    yield return eof;
-                    if (_frameCount > 10)
-                        _plugin.WaitCompletion(_frameCount - (ulong)_queueLength);
-                }
+            // Master sender coroutine
+
+            // Set target frame rate (using captureFramerate).
+            // It also stops v-sync.
+            var fps = Mathf.CeilToInt(_plugin.FrameRate);
+            if (!_plugin.IsProgressive) fps *= 2;
+            Time.captureFramerate = fps;
+
+            // Wait for sender completion every end-of-frame.
+            var qlen = (ulong)_queueLength;
+            for (var eof = new WaitForEndOfFrame();;)
+            {
+                yield return eof;
+                if (_frameCount < qlen) continue;
+                _plugin.WaitCompletion(_frameCount - qlen);
             }
         }
 
         void OnDestroy()
         {
+            Destroy(_subsampler);
+
+            if (_oddField != null) RenderTexture.ReleaseTemporary(_oddField);
+
             _plugin.Dispose();
-            Destroy(_material);
+
+            if (_targetRT != null)
+            {
+                TargetCamera.targetTexture = null;
+                Destroy(_targetRT);
+            }
+
+            Destroy(_blitter);
+
+            // We don't have to care about the frame queue.
+            // It will be automatically disposed.
         }
 
         void Update()
         {
-            // Normal mode: Process the frame queue without blocking.
-            if (!_lowLatencyMode) ProcessQueue(false);
-        }
-
-        void OnRenderImage(RenderTexture source, RenderTexture destination)
-        {
-            var dimensions = _plugin.FrameDimensions;
-
-            RenderTexture frame = null;
-
-            if (_plugin.IsProgressive)
-            {
-                // Progressive mode: Request readback every frame.
-                frame = RenderTexture.GetTemporary(dimensions.x / 2, dimensions.y);
-                Graphics.Blit(source, frame, _material, 0);
-            }
-            else
-            {
-                // Interlace mode
-                if (_fielding == null)
-                {
-                    // Odd frame: Make a copy of this frame with a fielding buffer.
-                    _fielding = RenderTexture.GetTemporary(source.width, source.height);
-                    Graphics.Blit(source, _fielding);
-                }
-                else
-                {
-                    // Even frame: Interlace and request readback.
-                    frame = RenderTexture.GetTemporary(dimensions.x / 2, dimensions.y);
-                    _material.SetTexture("_FieldTex", _fielding);
-                    Graphics.Blit(source, frame, _material, 1);
-
-                    // Release the fielding buffer.
-                    RenderTexture.ReleaseTemporary(_fielding);
-                    _fielding = null;
-                }
-            }
+            var frame = EncodeFrame(TargetCamera.targetTexture);
 
             if (frame != null)
             {
-                // Async readback request
-                _queue.Enqueue(AsyncGPUReadback.Request(frame));
+                PushFrame(frame);
                 RenderTexture.ReleaseTemporary(frame);
-
-                // Low-latency mode: Process the queued request immediately.
-                if (_lowLatencyMode) ProcessQueue(true);
             }
 
-            // Through blit
-            Graphics.Blit(source, destination);
+            ProcessFrameQueue(_lowLatencyMode);
         }
 
         #endregion

@@ -410,8 +410,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _deviceSelection: 0
-  _formatSelection: 11
-  _queueLength: 3
+  _formatSelection: 9
+  _queueLength: 1
   _lowLatencyMode: 1
   _isMaster: 1
 --- !u!20 &1519612757
