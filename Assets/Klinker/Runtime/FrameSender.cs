@@ -7,6 +7,7 @@ using System.Collections.Generic;
 
 namespace Klinker
 {
+    [AddComponentMenu("Klinker/Frame Sender")]
     [RequireComponent(typeof(Camera))]
     public class FrameSender : MonoBehaviour
     {
@@ -83,7 +84,9 @@ namespace Klinker
 
             if (_isMaster)
             {
-                Time.captureFramerate = 60;
+                var fps = Mathf.CeilToInt(PluginEntry.GetSenderFrameRate(_plugin));
+                if (PluginEntry.IsSenderProgressive(_plugin) == 0) fps *= 2;
+                Time.captureFramerate = fps;
 
                 var eof = new WaitForEndOfFrame();
 

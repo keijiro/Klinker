@@ -33,6 +33,11 @@ namespace klinker
             return { displayMode_->GetWidth(), displayMode_->GetHeight() };
         }
 
+        float GetFrameRate() const
+        {
+            return static_cast<float>(timeScale_) / frameDuration_;
+        }
+
         bool IsProgressive() const
         {
             assert(displayMode_ != nullptr);

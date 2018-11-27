@@ -15,12 +15,10 @@ namespace Klinker
         #region Enumeration functions
 
         [DllImport("Klinker")]
-        public static extern int
-            RetrieveDeviceNames(IntPtr[] names, int maxCount);
+        public static extern int RetrieveDeviceNames(IntPtr[] names, int maxCount);
 
         [DllImport("Klinker")]
-        public static extern int
-            RetrieveOutputFormatNames(int device, IntPtr[] names, int maxCount);
+        public static extern int RetrieveOutputFormatNames(int device, IntPtr[] names, int maxCount);
 
         #endregion
 
@@ -37,6 +35,9 @@ namespace Klinker
 
         [DllImport("Klinker")]
         public static extern int GetSenderFrameHeight(IntPtr sender);
+
+        [DllImport("Klinker")]
+        public static extern float GetSenderFrameRate(IntPtr sender);
 
         [DllImport("Klinker")]
         public static extern int IsSenderProgressive(IntPtr sender);
