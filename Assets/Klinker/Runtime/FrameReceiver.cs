@@ -54,7 +54,7 @@ namespace Klinker
 
         ReceiverPlugin _plugin;
         Texture2D _sourceTexture;
-        Material _blitMaterial;
+        Material _upsampler;
         MaterialPropertyBlock _propertyBlock;
 
         #endregion
@@ -64,7 +64,7 @@ namespace Klinker
         void Start()
         {
             _plugin = new ReceiverPlugin(_deviceSelection, 0);
-            _blitMaterial = new Material(Shader.Find("Hidden/Klinker/Decoder"));
+            _upsampler = new Material(Shader.Find("Hidden/Klinker/Upsampler"));
         }
 
         void OnDestroy()
@@ -72,7 +72,7 @@ namespace Klinker
             _plugin.Dispose();
             Util.Destroy(_sourceTexture);
             Util.Destroy(_receivedTexture);
-            Util.Destroy(_blitMaterial);
+            Util.Destroy(_upsampler);
         }
 
         void Update()
@@ -111,7 +111,7 @@ namespace Klinker
 
             // Chroma upsampling
             var receiver = _targetTexture != null ? _targetTexture : _receivedTexture;
-            Graphics.Blit(_sourceTexture, receiver, _blitMaterial, 0);
+            Graphics.Blit(_sourceTexture, receiver, _upsampler, 0);
             receiver.IncrementUpdateCount();
 
             // Renderer override
