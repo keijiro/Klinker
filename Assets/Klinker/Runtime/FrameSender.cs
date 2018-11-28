@@ -13,7 +13,7 @@ namespace Klinker
 
         [SerializeField] int _deviceSelection = 0;
         [SerializeField] int _formatSelection = 0;
-        [SerializeField, Range(0, 10)] int _queueLength = 2;
+        [SerializeField, Range(1, 10)] int _queueLength = 3;
         [SerializeField] bool _lowLatencyMode = false;
         [SerializeField] bool _isMaster = false;
 
@@ -125,7 +125,7 @@ namespace Klinker
                 }
 
                 // Feed the frame data to the plugin.
-                _plugin.EnqueueFrame(frame.GetData<byte>());
+                _plugin.FeedFrame(frame.GetData<byte>());
                 _frameCount++;
 
                 _frameQueue.Dequeue();
@@ -148,7 +148,13 @@ namespace Klinker
         IEnumerator Start()
         {
             // Internal objects initialization
-            _plugin = new SenderPlugin(_deviceSelection, _formatSelection);
+            if (_isMaster)
+                _plugin = SenderPlugin.
+                    CreateManualSender(_deviceSelection, _formatSelection);
+            else
+                _plugin = SenderPlugin.
+                    CreateAsyncSender(_deviceSelection, _formatSelection, _queueLength);
+
             _subsampler = new Material(Shader.Find("Hidden/Klinker/Subsampler"));
 
             var dim = _plugin.FrameDimensions;

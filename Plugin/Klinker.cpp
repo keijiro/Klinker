@@ -131,17 +131,24 @@ extern "C" void UNITY_INTERFACE_EXPORT * GetReceiverFormatName(void* receiver)
 
 #pragma region Sender plugin functions
 
-extern "C" void UNITY_INTERFACE_EXPORT * CreateSender(int device, int format)
+extern "C" void UNITY_INTERFACE_EXPORT * CreateAsyncSender(int device, int format, int preroll)
 {
     auto instance = new klinker::Sender();
-    instance->StartSending(device, format);
+    instance->StartAsyncMode(device, format, preroll);
+    return instance;
+}
+
+extern "C" void UNITY_INTERFACE_EXPORT * CreateManualSender(int device, int format)
+{
+    auto instance = new klinker::Sender();
+    instance->StartManualMode(device, format);
     return instance;
 }
 
 extern "C" void UNITY_INTERFACE_EXPORT DestroySender(void* sender)
 {
     auto instance = reinterpret_cast<klinker::Sender*>(sender);
-    instance->StopSending();
+    instance->Stop();
     instance->Release();
 }
 
@@ -175,16 +182,16 @@ extern "C" int UNITY_INTERFACE_EXPORT IsSenderReferenceLocked(void* sender)
     return instance->IsReferenceLocked() ? 1 : 0;
 }
 
-extern "C" void UNITY_INTERFACE_EXPORT EnqueueSenderFrame(void* sender, void* data)
+extern "C" void UNITY_INTERFACE_EXPORT FeedFrameToSender(void* sender, void* frameData)
 {
     auto instance = reinterpret_cast<klinker::Sender*>(sender);
-    instance->EnqueueFrame(data);
+    instance->FeedFrame(frameData);
 }
 
-extern "C" void UNITY_INTERFACE_EXPORT WaitSenderCompletion(void* sender, std::uint64_t frame)
+extern "C" void UNITY_INTERFACE_EXPORT WaitSenderCompletion(void* sender, std::uint64_t frameNumber)
 {
     auto instance = reinterpret_cast<klinker::Sender*>(sender);
-    instance->WaitCompletion(frame);
+    instance->WaitFrameCompletion(frameNumber);
 }
 
 #pragma endregion

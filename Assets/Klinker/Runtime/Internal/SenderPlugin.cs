@@ -8,11 +8,25 @@ namespace Klinker
 {
     sealed class SenderPlugin : IDisposable
     {
+        #region Factory methods
+
+        public static SenderPlugin CreateAsyncSender(int device, int format, int preroll)
+        {
+            return new SenderPlugin(_CreateAsyncSender(device, format, preroll));
+        }
+
+        public static SenderPlugin CreateManualSender(int device, int format)
+        {
+            return new SenderPlugin(_CreateManualSender(device, format));
+        }
+
+        #endregion
+
         #region Disposable pattern
 
-        public SenderPlugin(int device, int format)
+        SenderPlugin(IntPtr plugin)
         {
-            _plugin = CreateSender(device, format);
+            _plugin = plugin;
         }
 
         ~SenderPlugin()
@@ -57,9 +71,9 @@ namespace Klinker
 
         #region Public methods
 
-        public unsafe void EnqueueFrame<T>(NativeArray<T> data) where T : struct
+        public unsafe void FeedFrame<T>(NativeArray<T> data) where T : struct
         {
-            EnqueueSenderFrame(_plugin, (IntPtr)data.GetUnsafeReadOnlyPtr());
+            FeedFrameToSender(_plugin, (IntPtr)data.GetUnsafeReadOnlyPtr());
         }
 
         public void WaitCompletion(ulong frameNumber)
@@ -73,8 +87,11 @@ namespace Klinker
 
         IntPtr _plugin;
 
-        [DllImport("Klinker")]
-        static extern IntPtr CreateSender(int device, int format);
+        [DllImport("Klinker", EntryPoint="CreateAsyncSender")]
+        static extern IntPtr _CreateAsyncSender(int device, int format, int preroll);
+
+        [DllImport("Klinker", EntryPoint="CreateManualSender")]
+        static extern IntPtr _CreateManualSender(int device, int format);
 
         [DllImport("Klinker")]
         static extern void DestroySender(IntPtr sender);
@@ -95,10 +112,10 @@ namespace Klinker
         static extern int IsSenderReferenceLocked(IntPtr sender);
 
         [DllImport("Klinker")]
-        static extern void EnqueueSenderFrame(IntPtr sender, IntPtr data);
+        static extern void FeedFrameToSender(IntPtr sender, IntPtr frameData);
 
         [DllImport("Klinker")]
-        static extern void WaitSenderCompletion(IntPtr sender, ulong frame);
+        static extern void WaitSenderCompletion(IntPtr sender, ulong frameNumber);
 
         #endregion
     }

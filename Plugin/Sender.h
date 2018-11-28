@@ -8,8 +8,28 @@
 
 namespace klinker
 {
-    // Frame receiver class
-    // It also privately implements a video output completion callback.
+    //
+    // Frame sender class
+    //
+    // There are two modes that determine how output frames are scheduled.
+    //
+    // * Async mode
+    //
+    // Output frames are asynchronously scheduled by the completion callback.
+    // Unity can update the frame at any time, but it's not guaranteed to be
+    // scheduled, as the completion callback only takes the latest state.
+    //
+    // The length of the output queue is adjusted by prerolling.
+    //
+    // * Manual mode
+    //
+    // Output frames are directly scheduled by Unity. It can guarantee that
+    // all frames are to be scheduled on time but needs to be explicitly
+    // synchronized to output refreshing. The WaitFrameCompletion method is
+    // provided for this purpose.
+    //
+    // The length of the output queue is controlled by Unity.
+    //
     class Sender final : private IDeckLinkVideoOutputCallback
     {
     public:
@@ -21,6 +41,7 @@ namespace klinker
             // Internal objects should have been released.
             assert(output_ == nullptr);
             assert(displayMode_ == nullptr);
+            assert(frame_ == nullptr);
         }
 
         #pragma endregion
@@ -46,6 +67,7 @@ namespace klinker
 
         bool IsReferenceLocked() const
         {
+            assert(output_ != nullptr);
             BMDReferenceStatus stat;
             AssertSuccess(output_->GetReferenceStatus(&stat));
             return stat & bmdReferenceLocked;
@@ -55,27 +77,32 @@ namespace klinker
 
         #pragma region Public methods
 
-        void StartSending(int deviceIndex, int formatIndex)
+        void StartAsyncMode(int deviceIndex, int formatIndex, int preroll)
         {
             assert(output_ == nullptr);
             assert(displayMode_ == nullptr);
+            assert(frame_ == nullptr);
 
-            // Initialize a video output.
             InitializeOutput(deviceIndex, formatIndex);
 
-            // Start getting callback from the video output.
-            AssertSuccess(output_->SetScheduledFrameCompletionCallback(this));
+            // Prerolling
+            frame_ = AllocateFrame();
+            for (auto i = 0; i < preroll; i++) ScheduleFrame(frame_);
 
-            // Enable the video output.
-            AssertSuccess(output_->EnableVideoOutput(
-                displayMode_->GetDisplayMode(), bmdVideoOutputFlagDefault
-            ));
-
-            // Start scheduled playback.
             AssertSuccess(output_->StartScheduledPlayback(0, 1, 1));
         }
 
-        void StopSending()
+        void StartManualMode(int deviceIndex, int formatIndex)
+        {
+            assert(output_ == nullptr);
+            assert(displayMode_ == nullptr);
+            assert(frame_ == nullptr);
+
+            InitializeOutput(deviceIndex, formatIndex);
+            AssertSuccess(output_->StartScheduledPlayback(0, 1, 1));
+        }
+
+        void Stop()
         {
             assert(output_ != nullptr);
             assert(displayMode_ != nullptr);
@@ -86,45 +113,51 @@ namespace klinker
             output_->DisableVideoOutput();
 
             // Release the internal objects.
+            if (frame_ != nullptr)
+            {
+                frame_->Release();
+                frame_ = nullptr;
+            }
+
             displayMode_->Release();
             displayMode_ = nullptr;
+
             output_->Release();
             output_ = nullptr;
         }
 
-        void EnqueueFrame(void* data)
+        void FeedFrame(void* frameData)
         {
             assert(output_ != nullptr);
             assert(displayMode_ != nullptr);
 
-            auto width = displayMode_->GetWidth();
-            auto height = displayMode_->GetHeight();
+            // Allocate a new frame for the fed data.
+            auto newFrame = AllocateFrame();
+            CopyFrameData(newFrame, frameData);
 
-            // Allocate a new frame.
-            IDeckLinkMutableVideoFrame* frame;
-            AssertSuccess(output_->CreateVideoFrame(
-                width, height, width * 2, bmdFormat8BitYUV, bmdFrameFlagDefault, &frame
-            ));
+            if (IsAsyncMode())
+            {
+                // Async mode: Replace the frame_ object with it.
+                std::lock_guard<std::mutex> lock(mutex_);
+                frame_->Release();
+                frame_ = newFrame;
+            }
+            else
+            {
+                // Manual mode: Immediately schedule it.
+                ScheduleFrame(newFrame);
+                newFrame->Release();
 
-            // Copy the frame data.
-            void* pointer;
-            AssertSuccess(frame->GetBytes(&pointer));
-            std::memcpy(pointer, data, (std::size_t)2 * width * height);
-
-            // Add the frame to the queue.
-            auto time = frameDuration_ * (counters_.queued + counters_.skipped);
-            output_->ScheduleVideoFrame(frame, time, frameDuration_, timeScale_);
-            counters_.queued++;
-
-            // Move the ownership of the frame to the scheduler.
-            frame->Release();
+                // Note: We don't have to use the mutex because nothing here
+                // conflicts with the completion callback.
+            }
         }
 
-        void WaitCompletion(std::uint64_t frame)
+        void WaitFrameCompletion(std::uint64_t frameNumber)
         {
             // Wait for completion of a specified frame.
             std::unique_lock<std::mutex> lock(mutex_);
-            condition_.wait(lock, [=]() { return counters_.completed >= frame; });
+            condition_.wait(lock, [=]() { return counters_.completed >= frameNumber; });
         }
 
         #pragma endregion
@@ -172,22 +205,24 @@ namespace klinker
             BMDOutputFrameCompletionResult result
         ) override
         {
+            #if defined(_DEBUG)
+
             if (result == bmdOutputFrameDisplayedLate)
-            {
-                // The next frame should be skipped to compensate the delay.
-                counters_.skipped++;
                 std::printf("Frame %p was displayed late.\n", completedFrame);
-            }
 
             if (result == bmdOutputFrameDropped)
-            {
                 std::printf("Frame %p was dropped.\n", completedFrame);
-            }
+
+            #endif
+
+            std::lock_guard<std::mutex> lock(mutex_);
 
             // Increment the frame count and notify the main thread.
-            std::lock_guard<std::mutex> lock(mutex_);
             counters_.completed++;
             condition_.notify_all();
+
+            // Async mode: Schedule the next frame.
+            if (IsAsyncMode()) ScheduleFrame(frame_);
 
             return S_OK;
         }
@@ -207,6 +242,7 @@ namespace klinker
 
         IDeckLinkOutput* output_ = nullptr;
         IDeckLinkDisplayMode* displayMode_ = nullptr;
+        IDeckLinkMutableVideoFrame* frame_ = nullptr;
 
         BMDTimeValue frameDuration_ = 0;
         BMDTimeScale timeScale_ = 1;
@@ -218,9 +254,42 @@ namespace klinker
         {
             std::uint64_t queued = 0;
             std::uint64_t completed = 0;
-            std::uint64_t skipped = 0;
         }
         counters_;
+
+        bool IsAsyncMode() const
+        {
+            // This is a little bit hackish, but we can determine the
+            // current mode by checking if we have a frame_ object.
+            return frame_ != nullptr;
+        }
+
+        IDeckLinkMutableVideoFrame* AllocateFrame()
+        {
+            auto width = displayMode_->GetWidth();
+            auto height = displayMode_->GetHeight();
+            IDeckLinkMutableVideoFrame* frame;
+            AssertSuccess(output_->CreateVideoFrame(
+                width, height, width * 2,
+                bmdFormat8BitYUV, bmdFrameFlagDefault, &frame
+            ));
+            return frame;
+        }
+
+        void CopyFrameData(IDeckLinkMutableVideoFrame* frame, const void* data) const
+        {
+            auto width = displayMode_->GetWidth();
+            auto height = displayMode_->GetHeight();
+            void* pointer;
+            AssertSuccess(frame->GetBytes(&pointer));
+            std::memcpy(pointer, data, (std::size_t)2 * width * height);
+        }
+
+        void ScheduleFrame(IDeckLinkMutableVideoFrame* frame)
+        {
+            auto time = frameDuration_ * counters_.queued++;
+            output_->ScheduleVideoFrame(frame, time, frameDuration_, timeScale_);
+        }
 
         void InitializeOutput(int deviceIndex, int formatIndex)
         {
@@ -262,8 +331,15 @@ namespace klinker
             // Get the frame rate defined in the display mode.
             AssertSuccess(displayMode_->GetFrameRate(&frameDuration_, &timeScale_));
 
-            // Cleaning up
-            dmIterator->Release();
+            dmIterator->Release(); // The iterator is no longer needed.
+
+            // Set this object as a frame completion callback.
+            AssertSuccess(output_->SetScheduledFrameCompletionCallback(this));
+
+            // Enable the video output.
+            AssertSuccess(output_->EnableVideoOutput(
+                displayMode_->GetDisplayMode(), bmdVideoOutputFlagDefault
+            ));
         }
 
         #pragma endregion
