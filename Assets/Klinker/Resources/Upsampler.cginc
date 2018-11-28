@@ -1,8 +1,6 @@
 #include "UnityCG.cginc"
 
 sampler2D _MainTex;
-sampler2D _FieldTex;
-
 float4 _MainTex_TexelSize;
 
 // Adobe-flavored HDTV Rec.709 (2.2 gamma, 16-235 limit)
@@ -28,7 +26,14 @@ half3 YUV2RGB(half3 yuv)
 
 half4 Fragment_UYVY(v2f_img input) : SV_Target
 {
-    float2 uv = float2(input.uv.x, 1 - input.uv.y);
+    float2 uv = input.uv;
+    uv.y = 1 - uv.y;
+
+#if defined(UPSAMPLER_INTERLACE_ODD)
+    uv.y = (floor(uv.y * _MainTex_TexelSize.w / 2) * 2 + 0.5) * _MainTex_TexelSize.y;
+#elif defined(UPSAMPLER_INTERLACE_EVEN)
+    uv.y = (floor(uv.y * _MainTex_TexelSize.w / 2) * 2 + 1.5) * _MainTex_TexelSize.y;
+#endif
 
     half4 uyvy = tex2D(_MainTex, uv);
     bool sel = frac(uv.x * _MainTex_TexelSize.z) < 0.5;

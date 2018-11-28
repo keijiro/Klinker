@@ -88,7 +88,7 @@ extern "C" void UNITY_INTERFACE_EXPORT * CreateReceiver(int device, int format)
 {
     auto instance = new klinker::Receiver();
     receiverMap_.Add(instance);
-    instance->StartReceiving(device, format);
+    instance->Start(device, format);
     return instance;
 }
 
@@ -96,7 +96,7 @@ extern "C" void UNITY_INTERFACE_EXPORT DestroyReceiver(void* receiver)
 {
     auto instance = reinterpret_cast<klinker::Receiver*>(receiver);
     receiverMap_.Remove(instance);
-    instance->StopReceiving();
+    instance->Stop();
     instance->Release();
 }
 
@@ -116,6 +116,18 @@ extern "C" int UNITY_INTERFACE_EXPORT GetReceiverFrameHeight(void* receiver)
 {
     auto instance = reinterpret_cast<klinker::Receiver*>(receiver);
     return std::get<1>(instance->GetFrameDimensions());
+}
+
+extern "C" std::uint64_t UNITY_INTERFACE_EXPORT GetReceiverFrameCount(void* receiver)
+{
+    auto instance = reinterpret_cast<klinker::Receiver*>(receiver);
+    return instance->GetFrameCount();
+}
+
+extern "C" int UNITY_INTERFACE_EXPORT IsReceiverProgressive(void* receiver)
+{
+    auto instance = reinterpret_cast<klinker::Receiver*>(receiver);
+    return instance->IsProgressive() ? 1 : 0;
 }
 
 extern "C" void UNITY_INTERFACE_EXPORT * GetReceiverFormatName(void* receiver)

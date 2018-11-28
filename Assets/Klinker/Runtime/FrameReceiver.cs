@@ -56,6 +56,8 @@ namespace Klinker
         Texture2D _sourceTexture;
         Material _upsampler;
         MaterialPropertyBlock _propertyBlock;
+        int _fieldCount;
+        ulong _lastFrameCount;
 
         #endregion
 
@@ -109,9 +111,19 @@ namespace Klinker
                 _receivedTexture.wrapMode = TextureWrapMode.Clamp;
             }
 
+            // Field selection
+            var frameCount = _plugin.FrameCount;
+
+            if (frameCount == _lastFrameCount)
+                _fieldCount ^= 1;
+            else
+                _fieldCount = 0;
+
+            _lastFrameCount = frameCount;
+
             // Chroma upsampling
             var receiver = _targetTexture != null ? _targetTexture : _receivedTexture;
-            Graphics.Blit(_sourceTexture, receiver, _upsampler, 0);
+            Graphics.Blit(_sourceTexture, receiver, _upsampler, 1 + _fieldCount);
             receiver.IncrementUpdateCount();
 
             // Renderer override

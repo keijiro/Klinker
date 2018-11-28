@@ -43,6 +43,14 @@ namespace Klinker
             );
         } }
 
+        public ulong FrameCount { get {
+            return GetReceiverFrameCount(_plugin);
+        } }
+
+        public bool IsProgressive { get {
+            return IsReceiverProgressive(_plugin) != 0;
+        } }
+
         public string FormatName { get {
             var bstr = GetReceiverFormatName(_plugin);
             if (bstr == IntPtr.Zero) return null;
@@ -60,25 +68,31 @@ namespace Klinker
         IntPtr _plugin;
 
         [DllImport("Klinker")]
-        public static extern IntPtr CreateReceiver(int device, int format);
+        static extern IntPtr CreateReceiver(int device, int format);
 
         [DllImport("Klinker")]
-        public static extern void DestroyReceiver(IntPtr receiver);
+        static extern void DestroyReceiver(IntPtr receiver);
 
         [DllImport("Klinker")]
-        public static extern uint GetReceiverID(IntPtr receiver);
+        static extern uint GetReceiverID(IntPtr receiver);
 
         [DllImport("Klinker")]
-        public static extern int GetReceiverFrameWidth(IntPtr receiver);
+        static extern int GetReceiverFrameWidth(IntPtr receiver);
 
         [DllImport("Klinker")]
-        public static extern int GetReceiverFrameHeight(IntPtr receiver);
+        static extern int GetReceiverFrameHeight(IntPtr receiver);
 
         [DllImport("Klinker")]
-        public static extern IntPtr GetReceiverFormatName(IntPtr receiver);
+        static extern ulong GetReceiverFrameCount(IntPtr receiver);
 
         [DllImport("Klinker")]
-        public static extern IntPtr GetTextureUpdateCallback();
+        static extern int IsReceiverProgressive(IntPtr receiver);
+
+        [DllImport("Klinker")]
+        static extern IntPtr GetReceiverFormatName(IntPtr receiver);
+
+        [DllImport("Klinker")]
+        static extern IntPtr GetTextureUpdateCallback();
 
         #endregion
     }

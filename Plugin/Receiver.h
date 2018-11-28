@@ -8,20 +8,14 @@
 
 namespace klinker
 {
+    //
     // Frame receiver class
-    // It also privately implements a video input callback interface.
+    //
     class Receiver final : private IDeckLinkInputCallback
     {
     public:
 
         #pragma region Constructor/destructor
-
-        Receiver()
-            : refCount_(1),
-              input_(nullptr), displayMode_(nullptr),
-              frameSize_({0, 0})
-        {
-        }
 
         ~Receiver()
         {
@@ -34,31 +28,45 @@ namespace klinker
 
         #pragma region Accessor methods
 
-        auto GetFrameDimensions() const
+        std::tuple<int, int> GetFrameDimensions() const
         {
-            return frameSize_;
+            assert(displayMode_ != nullptr);
+            return { displayMode_->GetWidth(), displayMode_->GetHeight() };
         }
 
         std::size_t CalculateFrameDataSize() const
         {
-            return (std::size_t)2 * std::get<0>(frameSize_) * std::get<1>(frameSize_);
+            assert(displayMode_ != nullptr);
+            return (std::size_t)2 *
+                displayMode_->GetWidth() * displayMode_->GetHeight();
+        }
+
+        uint64_t GetFrameCount() const
+        {
+            return frameCount_;
         }
 
         const uint8_t* LockFrameData()
         {
-            frameMutex_.lock();
+            mutex_.lock();
             return frameData_.data();
         }
 
         void UnlockFrameData()
         {
-            frameMutex_.unlock();
+            mutex_.unlock();
+        }
+
+        bool IsProgressive() const
+        {
+            assert(displayMode_ != nullptr);
+            return displayMode_->GetFieldDominance() == bmdProgressiveFrame;
         }
 
         BSTR RetrieveFormatName() const
         {
             assert(displayMode_ != nullptr);
-            std::lock_guard<std::mutex> lock(frameMutex_);
+            std::lock_guard<std::mutex> lock(mutex_);
             BSTR name;
             AssertSuccess(displayMode_->GetName(&name));
             return name;
@@ -68,33 +76,31 @@ namespace klinker
 
         #pragma region Public methods
 
-        void StartReceiving(int deviceIndex, int formatIndex)
+        void Start(int deviceIndex, int formatIndex)
         {
             assert(input_ == nullptr);
             assert(displayMode_ == nullptr);
 
-            // Initialize a video input.
             InitializeInput(deviceIndex, formatIndex);
 
             // Allocate an initial frame memory.
-            frameSize_ = { displayMode_->GetWidth(), displayMode_->GetHeight() };
             frameData_.resize(CalculateFrameDataSize());
 
-            // Start getting callback from the video input.
+            // Enable the callback.
             AssertSuccess(input_->SetCallback(this));
 
-            // Enable the video input with format detection.
+            // Enable the video input with auto format detection.
             AssertSuccess(input_->EnableVideoInput(
                 displayMode_->GetDisplayMode(),
                 bmdFormat8BitYUV,
                 bmdVideoInputEnableFormatDetection
             ));
 
-            // Start an input stream.
+            // Start the input stream.
             AssertSuccess(input_->StartStreams());
         }
 
-        void StopReceiving()
+        void Stop()
         {
             assert(input_ != nullptr);
             assert(displayMode_ != nullptr);
@@ -107,6 +113,7 @@ namespace klinker
             // Release the internal objects.
             displayMode_->Release();
             displayMode_ = nullptr;
+
             input_->Release();
             input_ = nullptr;
         }
@@ -156,15 +163,14 @@ namespace klinker
         ) override
         {
             {
-                std::lock_guard<std::mutex> lock(frameMutex_);
+                std::lock_guard<std::mutex> lock(mutex_);
 
-                // Change the display mode.
+                // Update the display mode information.
                 displayMode_->Release();
                 displayMode_ = mode;
                 mode->AddRef();
 
-                // Resize the frame memory.
-                frameSize_ = { displayMode_->GetWidth(), displayMode_->GetHeight() };
+                // Resize the frame data memory.
                 frameData_.resize(CalculateFrameDataSize());
             }
 
@@ -186,21 +192,22 @@ namespace klinker
             IDeckLinkAudioInputPacket* audioPacket
         ) override
         {
-            if (videoFrame != nullptr)
-            {
-                std::lock_guard<std::mutex> lock(frameMutex_);
+            // Do nothing if there is no video frame.
+            if (videoFrame == nullptr) return S_OK;
 
-                // Calculate the size of the given video frame.
-                auto size = videoFrame->GetRowBytes() * videoFrame->GetHeight();
+            std::lock_guard<std::mutex> lock(mutex_);
 
-                // Do nothing if the size mismatches.
-                if (size != CalculateFrameDataSize()) return S_OK;
+            // Check the size of the given video frame.
+            auto size = videoFrame->GetRowBytes() * videoFrame->GetHeight();
+            if (size != CalculateFrameDataSize()) return S_OK;
 
-                // Simply memcpy the content of the frame.
-                void* source;
-                AssertSuccess(videoFrame->GetBytes(&source));
-                std::memcpy(frameData_.data(), source, size);
-            }
+            // Simply memcpy the content of the frame.
+            void* source;
+            AssertSuccess(videoFrame->GetBytes(&source));
+            std::memcpy(frameData_.data(), source, size);
+
+            frameCount_++;
+
             return S_OK;
         }
 
@@ -210,14 +217,14 @@ namespace klinker
 
         #pragma region Private members
 
-        std::atomic<ULONG> refCount_;
+        std::atomic<ULONG> refCount_ = 1;
 
-        IDeckLinkInput* input_;
-        IDeckLinkDisplayMode* displayMode_;
+        IDeckLinkInput* input_ = nullptr;
+        IDeckLinkDisplayMode* displayMode_ = nullptr;
 
         std::vector<uint8_t> frameData_;
-        std::tuple<int, int> frameSize_;
-        mutable std::mutex frameMutex_;
+        std::uint64_t frameCount_ = 0;
+        mutable std::mutex mutex_;
 
         void InitializeInput(int deviceIndex, int formatIndex)
         {

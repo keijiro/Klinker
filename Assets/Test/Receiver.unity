@@ -160,7 +160,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 055d7ab3e70b85548947fb078dc395d8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _deviceSelection: 0
+  _deviceSelection: 1
   _targetTexture: {fileID: 0}
   _targetRenderer: {fileID: 1628151443}
   _targetMaterialProperty: _MainTex
