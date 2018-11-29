@@ -80,6 +80,7 @@ namespace klinker
 
         void DequeueFrame()
         {
+            std::lock_guard<std::mutex> lock(mutex_);
             frameQueue_.pop();
         }
 
@@ -200,10 +201,16 @@ namespace klinker
         ) override
         {
             if (videoFrame == nullptr) return S_OK;
-            if (frameQueue_.size() >= maxQueueLength_) return S_OK;
+
+            if (frameQueue_.size() >= maxQueueLength_)
+            {
+                std::printf("Overqueued: Arrived frame %p was dropped.", videoFrame);
+                return S_OK;
+            }
 
             // Calculate the data size.
             auto size = videoFrame->GetRowBytes() * videoFrame->GetHeight();
+            assert(size == CalculateFrameDataSize());
 
             // Retrieve the data pointer.
             std::uint8_t* source;
@@ -230,7 +237,7 @@ namespace klinker
         std::queue<std::vector<uint8_t>> frameQueue_;
         mutable std::mutex mutex_;
 
-        static const std::size_t maxQueueLength_ = 4;
+        static const std::size_t maxQueueLength_ = 5;
 
         void InitializeInput(int deviceIndex, int formatIndex)
         {

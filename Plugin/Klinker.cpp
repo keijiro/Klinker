@@ -118,6 +118,12 @@ extern "C" int UNITY_INTERFACE_EXPORT GetReceiverFrameHeight(void* receiver)
     return std::get<1>(instance->GetFrameDimensions());
 }
 
+extern "C" float UNITY_INTERFACE_EXPORT GetReceiverFrameRate(void* receiver)
+{
+    auto instance = reinterpret_cast<klinker::Receiver*>(receiver);
+    return instance->GetFrameRate();
+}
+
 extern "C" int UNITY_INTERFACE_EXPORT IsReceiverProgressive(void* receiver)
 {
     auto instance = reinterpret_cast<klinker::Receiver*>(receiver);

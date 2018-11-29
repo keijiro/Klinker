@@ -3,11 +3,13 @@ using UnityEngine.Rendering;
 
 namespace Klinker
 {
+    [AddComponentMenu("Klinker/Frame Receiver")]
     public class FrameReceiver : MonoBehaviour
     {
-        #region Device settings
+        #region Editable attribute
 
         [SerializeField] int _deviceSelection = 0;
+        [SerializeField, Range(1, 10)] int _queueLength = 3;
 
         #endregion
 
@@ -50,15 +52,64 @@ namespace Klinker
 
         #endregion
 
+        #region Input queue control
+
+        float _frameTime;
+        bool _prerolled;
+        int _fieldCount;
+
+        bool UpdateQueue()
+        {
+            // At least it should have one frame in the queue.
+            if (_plugin.QueuedFrameCount == 0) return false;
+
+            // Prerolling
+            if (!_prerolled)
+            {
+                if (_plugin.QueuedFrameCount < 1 + _queueLength)
+                    return false;
+                else
+                    _prerolled = true;
+            }
+
+            // Calculate the duration of input frames.
+            var duration = 1 / _plugin.FrameRate;
+
+            // Advane the frame time.
+            _frameTime += Time.deltaTime;
+
+            // Swap the field.
+            _fieldCount ^= 1;
+
+            // Dequeue input frames that are in the previous frame duration.
+            while (_frameTime >= duration)
+            {
+                // If there is no frame to dequeue, restart from prerolling.
+                if (_plugin.QueuedFrameCount == 1)
+                {
+                    _prerolled = false;
+                    break;
+                }
+
+                // Dequeuing
+                _plugin.DequeueFrame();
+                _frameTime -= duration;
+
+                // Restart from the odd field.
+                _fieldCount = 0;
+            }
+
+            return true;
+        }
+
+        #endregion
+
         #region Private members
 
         ReceiverPlugin _plugin;
-        Texture2D _sourceTexture;
         Material _upsampler;
+        Texture2D _sourceTexture;
         MaterialPropertyBlock _propertyBlock;
-        int _fieldCount;
-        ulong _dequeueCount;
-        ulong _lastFrameCount;
 
         #endregion
 
@@ -75,22 +126,16 @@ namespace Klinker
             _plugin.Dispose();
             Util.Destroy(_sourceTexture);
             Util.Destroy(_receivedTexture);
-            Util.Destroy(_upsampler);
+            Destroy(_upsampler);
         }
 
         void Update()
         {
-            var dimensions = _plugin.FrameDimensions;
-
-            // Tentative implementation: Keep the receiver queue length to 1.
-            if (_plugin.QueuedFrameCount == 0) return;
-            while (_plugin.QueuedFrameCount > 1)
-            {
-                _plugin.DequeueFrame();
-                _dequeueCount++;
-            }
+            // Update input queue; Break if it's not ready.
+            if (!UpdateQueue()) return;
 
             // Renew texture objects when the frame dimensions were changed.
+            var dimensions = _plugin.FrameDimensions;
             if (_sourceTexture != null &&
                 (_sourceTexture.width != dimensions.x / 2 ||
                  _sourceTexture.height != dimensions.y))
@@ -119,14 +164,6 @@ namespace Klinker
                 _receivedTexture = new RenderTexture(dimensions.x, dimensions.y, 0);
                 _receivedTexture.wrapMode = TextureWrapMode.Clamp;
             }
-
-            // Field selection
-            if (_dequeueCount == _lastFrameCount)
-                _fieldCount ^= 1;
-            else
-                _fieldCount = 0;
-
-            _lastFrameCount = _dequeueCount;
 
             // Chroma upsampling
             var receiver = _targetTexture != null ? _targetTexture : _receivedTexture;

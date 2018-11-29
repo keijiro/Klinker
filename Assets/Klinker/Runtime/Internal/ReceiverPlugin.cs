@@ -43,6 +43,10 @@ namespace Klinker
             );
         } }
 
+        public float FrameRate { get {
+            return GetReceiverFrameRate(_plugin);
+        } }
+
         public bool IsProgressive { get {
             return IsReceiverProgressive(_plugin) != 0;
         } }
@@ -90,6 +94,9 @@ namespace Klinker
 
         [DllImport("Klinker")]
         static extern int GetReceiverFrameHeight(IntPtr receiver);
+
+        [DllImport("Klinker")]
+        static extern float GetReceiverFrameRate(IntPtr receiver);
 
         [DllImport("Klinker")]
         static extern int IsReceiverProgressive(IntPtr receiver);
