@@ -3,6 +3,7 @@
 #include "Common.h"
 #include <atomic>
 #include <mutex>
+#include <queue>
 #include <tuple>
 #include <vector>
 
@@ -10,6 +11,10 @@ namespace klinker
 {
     //
     // Frame receiver class
+    //
+    // Arrived frames will be stored in an internal queue that is only used to
+    // avoid frame dropping. Frame rate matching should be done on the
+    // application side.
     //
     class Receiver final : private IDeckLinkInputCallback
     {
@@ -34,33 +39,25 @@ namespace klinker
             return { displayMode_->GetWidth(), displayMode_->GetHeight() };
         }
 
-        std::size_t CalculateFrameDataSize() const
+        float GetFrameRate() const
         {
-            assert(displayMode_ != nullptr);
-            return (std::size_t)2 *
-                displayMode_->GetWidth() * displayMode_->GetHeight();
-        }
-
-        uint64_t GetFrameCount() const
-        {
-            return frameCount_;
-        }
-
-        const uint8_t* LockFrameData()
-        {
-            mutex_.lock();
-            return frameData_.data();
-        }
-
-        void UnlockFrameData()
-        {
-            mutex_.unlock();
+            BMDTimeValue duration;
+            BMDTimeScale scale;
+            AssertSuccess(displayMode_->GetFrameRate(&duration, &scale));
+            return static_cast<float>(scale) / duration;
         }
 
         bool IsProgressive() const
         {
             assert(displayMode_ != nullptr);
             return displayMode_->GetFieldDominance() == bmdProgressiveFrame;
+        }
+
+        std::size_t CalculateFrameDataSize() const
+        {
+            assert(displayMode_ != nullptr);
+            return (std::size_t)2 *
+                displayMode_->GetWidth() * displayMode_->GetHeight();
         }
 
         BSTR RetrieveFormatName() const
@@ -74,6 +71,31 @@ namespace klinker
 
         #pragma endregion
 
+        #pragma region Frame queue methods
+
+        std::size_t CountQueuedFrames() const
+        {
+            return frameQueue_.size();
+        }
+
+        void DequeueFrame()
+        {
+            frameQueue_.pop();
+        }
+
+        const uint8_t* LockOldestFrameData()
+        {
+            mutex_.lock();
+            return frameQueue_.front().data();
+        }
+
+        void UnlockOldestFrameData()
+        {
+            mutex_.unlock();
+        }
+
+        #pragma endregion
+
         #pragma region Public methods
 
         void Start(int deviceIndex, int formatIndex)
@@ -82,21 +104,6 @@ namespace klinker
             assert(displayMode_ == nullptr);
 
             InitializeInput(deviceIndex, formatIndex);
-
-            // Allocate an initial frame memory.
-            frameData_.resize(CalculateFrameDataSize());
-
-            // Enable the callback.
-            AssertSuccess(input_->SetCallback(this));
-
-            // Enable the video input with auto format detection.
-            AssertSuccess(input_->EnableVideoInput(
-                displayMode_->GetDisplayMode(),
-                bmdFormat8BitYUV,
-                bmdVideoInputEnableFormatDetection
-            ));
-
-            // Start the input stream.
             AssertSuccess(input_->StartStreams());
         }
 
@@ -170,8 +177,8 @@ namespace klinker
                 displayMode_ = mode;
                 mode->AddRef();
 
-                // Resize the frame data memory.
-                frameData_.resize(CalculateFrameDataSize());
+                // Flush the frame queue.
+                while (!frameQueue_.empty()) frameQueue_.pop();
             }
 
             // Change the video input format as notified.
@@ -192,21 +199,19 @@ namespace klinker
             IDeckLinkAudioInputPacket* audioPacket
         ) override
         {
-            // Do nothing if there is no video frame.
             if (videoFrame == nullptr) return S_OK;
+            if (frameQueue_.size() >= maxQueueLength_) return S_OK;
 
-            std::lock_guard<std::mutex> lock(mutex_);
-
-            // Check the size of the given video frame.
+            // Calculate the data size.
             auto size = videoFrame->GetRowBytes() * videoFrame->GetHeight();
-            if (size != CalculateFrameDataSize()) return S_OK;
 
-            // Simply memcpy the content of the frame.
-            void* source;
-            AssertSuccess(videoFrame->GetBytes(&source));
-            std::memcpy(frameData_.data(), source, size);
+            // Retrieve the data pointer.
+            std::uint8_t* source;
+            AssertSuccess(videoFrame->GetBytes(reinterpret_cast<void**>(&source)));
 
-            frameCount_++;
+            // Allocate and push a new frame to the frame queue.
+            std::lock_guard<std::mutex> lock(mutex_);
+            frameQueue_.emplace(source, source + size);
 
             return S_OK;
         }
@@ -222,9 +227,10 @@ namespace klinker
         IDeckLinkInput* input_ = nullptr;
         IDeckLinkDisplayMode* displayMode_ = nullptr;
 
-        std::vector<uint8_t> frameData_;
-        std::uint64_t frameCount_ = 0;
+        std::queue<std::vector<uint8_t>> frameQueue_;
         mutable std::mutex mutex_;
+
+        static const std::size_t maxQueueLength_ = 4;
 
         void InitializeInput(int deviceIndex, int formatIndex)
         {
@@ -263,8 +269,17 @@ namespace klinker
                 AssertSuccess(dmIterator->Next(&displayMode_));
             }
 
-            // Cleaning up
-            dmIterator->Release();
+            dmIterator->Release(); // The iterator is no longer needed.
+
+            // Set this object as a frame input callback.
+            AssertSuccess(input_->SetCallback(this));
+
+            // Enable the video input.
+            AssertSuccess(input_->EnableVideoInput(
+                displayMode_->GetDisplayMode(),
+                bmdFormat8BitYUV,
+                bmdVideoInputEnableFormatDetection
+            ));
         }
 
         #pragma endregion

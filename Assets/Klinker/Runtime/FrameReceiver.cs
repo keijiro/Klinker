@@ -57,6 +57,7 @@ namespace Klinker
         Material _upsampler;
         MaterialPropertyBlock _propertyBlock;
         int _fieldCount;
+        ulong _dequeueCount;
         ulong _lastFrameCount;
 
         #endregion
@@ -80,6 +81,14 @@ namespace Klinker
         void Update()
         {
             var dimensions = _plugin.FrameDimensions;
+
+            // Tentative implementation: Keep the receiver queue length to 1.
+            if (_plugin.QueuedFrameCount == 0) return;
+            while (_plugin.QueuedFrameCount > 1)
+            {
+                _plugin.DequeueFrame();
+                _dequeueCount++;
+            }
 
             // Renew texture objects when the frame dimensions were changed.
             if (_sourceTexture != null &&
@@ -112,14 +121,12 @@ namespace Klinker
             }
 
             // Field selection
-            var frameCount = _plugin.FrameCount;
-
-            if (frameCount == _lastFrameCount)
+            if (_dequeueCount == _lastFrameCount)
                 _fieldCount ^= 1;
             else
                 _fieldCount = 0;
 
-            _lastFrameCount = frameCount;
+            _lastFrameCount = _dequeueCount;
 
             // Chroma upsampling
             var receiver = _targetTexture != null ? _targetTexture : _receivedTexture;

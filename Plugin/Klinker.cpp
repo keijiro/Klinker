@@ -27,14 +27,14 @@ namespace
             if (receiver->CalculateFrameDataSize() != dataSize) return;
 
             // Lock the frame data for the update.
-            params->texData = const_cast<uint8_t*>(receiver->LockFrameData());
+            params->texData = const_cast<uint8_t*>(receiver->LockOldestFrameData());
         }
         else if (event == kUnityRenderingExtEventUpdateTextureEndV2)
         {
             // UpdateTextureEnd
             // Just unlock the frame data.
             auto params = reinterpret_cast<UnityRenderingExtTextureUpdateParamsV2*>(data);
-            receiverMap_[params->userData]->UnlockFrameData();
+            receiverMap_[params->userData]->UnlockOldestFrameData();
         }
     }
 }
@@ -118,12 +118,6 @@ extern "C" int UNITY_INTERFACE_EXPORT GetReceiverFrameHeight(void* receiver)
     return std::get<1>(instance->GetFrameDimensions());
 }
 
-extern "C" std::uint64_t UNITY_INTERFACE_EXPORT GetReceiverFrameCount(void* receiver)
-{
-    auto instance = reinterpret_cast<klinker::Receiver*>(receiver);
-    return instance->GetFrameCount();
-}
-
 extern "C" int UNITY_INTERFACE_EXPORT IsReceiverProgressive(void* receiver)
 {
     auto instance = reinterpret_cast<klinker::Receiver*>(receiver);
@@ -137,6 +131,18 @@ extern "C" void UNITY_INTERFACE_EXPORT * GetReceiverFormatName(void* receiver)
     if (name != nullptr) SysFreeString(name);
     name = instance->RetrieveFormatName();
     return name;
+}
+
+extern "C" int UNITY_INTERFACE_EXPORT CountReceiverQueuedFrames(void* receiver)
+{
+    auto instance = reinterpret_cast<klinker::Receiver*>(receiver);
+    return static_cast<int>(instance->CountQueuedFrames());
+}
+
+extern "C" void UNITY_INTERFACE_EXPORT DequeueReceiverFrame(void* receiver)
+{
+    auto instance = reinterpret_cast<klinker::Receiver*>(receiver);
+    instance->DequeueFrame();
 }
 
 #pragma endregion

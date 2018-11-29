@@ -43,10 +43,6 @@ namespace Klinker
             );
         } }
 
-        public ulong FrameCount { get {
-            return GetReceiverFrameCount(_plugin);
-        } }
-
         public bool IsProgressive { get {
             return IsReceiverProgressive(_plugin) != 0;
         } }
@@ -57,9 +53,22 @@ namespace Klinker
             return Marshal.PtrToStringBSTR(bstr);
         } }
 
+        public int QueuedFrameCount { get {
+            return CountReceiverQueuedFrames(_plugin);
+        } }
+
         public IntPtr TextureUpdateCallback { get {
             return GetTextureUpdateCallback();
         } }
+
+        #endregion
+
+        #region Public methods
+
+        public void DequeueFrame()
+        {
+            DequeueReceiverFrame(_plugin);
+        }
 
         #endregion
 
@@ -83,13 +92,16 @@ namespace Klinker
         static extern int GetReceiverFrameHeight(IntPtr receiver);
 
         [DllImport("Klinker")]
-        static extern ulong GetReceiverFrameCount(IntPtr receiver);
-
-        [DllImport("Klinker")]
         static extern int IsReceiverProgressive(IntPtr receiver);
 
         [DllImport("Klinker")]
         static extern IntPtr GetReceiverFormatName(IntPtr receiver);
+
+        [DllImport("Klinker")]
+        static extern int CountReceiverQueuedFrames(IntPtr receiver);
+
+        [DllImport("Klinker")]
+        static extern void DequeueReceiverFrame(IntPtr receiver);
 
         [DllImport("Klinker")]
         static extern IntPtr GetTextureUpdateCallback();
