@@ -123,7 +123,8 @@ namespace Klinker
 
             // Chroma upsampling
             var receiver = _targetTexture != null ? _targetTexture : _receivedTexture;
-            Graphics.Blit(_sourceTexture, receiver, _upsampler, 1 + _fieldCount);
+            var pass = _plugin.IsProgressive ? 0 : 1 + _fieldCount;
+            Graphics.Blit(_sourceTexture, receiver, _upsampler, pass);
             receiver.IncrementUpdateCount();
 
             // Renderer override
