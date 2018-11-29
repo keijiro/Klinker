@@ -1,3 +1,6 @@
+// Klinker - Blackmagic DeckLink plugin for Unity
+// https://github.com/keijiro/Klinker
+
 using UnityEngine;
 using UnityEngine.Rendering;
 using System.Collections;
@@ -5,6 +8,9 @@ using System.Collections.Generic;
 
 namespace Klinker
 {
+    // Frame sender class
+    // Captures rendered frames from an attached camera and feeds them to a
+    // DeckLink device.
     [AddComponentMenu("Klinker/Frame Sender")]
     [RequireComponent(typeof(Camera))]
     public sealed class FrameSender : MonoBehaviour

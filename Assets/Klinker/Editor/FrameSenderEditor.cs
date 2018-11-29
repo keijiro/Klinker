@@ -1,3 +1,6 @@
+// Klinker - Blackmagic DeckLink plugin for Unity
+// https://github.com/keijiro/Klinker
+
 using UnityEngine;
 using UnityEditor;
 using System.Linq;
@@ -23,7 +26,7 @@ namespace Klinker
 
         void CacheFormats(int deviceIndex)
         {
-            var formats = DeviceManager.GetOutputFormatNames(deviceIndex);
+            var formats = DeviceEnumerator.GetOutputFormatNames(deviceIndex);
             _formatLabels = formats.Select((x) => new GUIContent(x)).ToArray();
             _formatValues = Enumerable.Range(0, formats.Length).ToArray();
         }
@@ -42,7 +45,7 @@ namespace Klinker
             _isMaster = serializedObject.FindProperty("_isMaster");
 
             // Scan all available devices.
-            var devices = DeviceManager.GetDeviceNames();
+            var devices = DeviceEnumerator.GetDeviceNames();
             _deviceLabels = devices.Select((x) => new GUIContent(x)).ToArray();
             _deviceValues = Enumerable.Range(0, devices.Length).ToArray();
 

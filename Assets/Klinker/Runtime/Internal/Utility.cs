@@ -1,12 +1,15 @@
+// Klinker - Blackmagic DeckLink plugin for Unity
+// https://github.com/keijiro/Klinker
+
 using UnityEngine;
 using UnityEngine.Rendering;
 
 namespace Klinker
 {
-    // Internal utilities
+    // Internal utility functions
     static class Util
     {
-        internal static void Destroy(Object obj)
+        public static void Destroy(Object obj)
         {
             if (obj == null) return;
 
@@ -18,7 +21,7 @@ namespace Klinker
 
         static CommandBuffer _commandBuffer;
 
-        internal static void
+        public static void
             IssueTextureUpdateEvent(System.IntPtr callback, Texture texture, uint userData)
         {
             if (_commandBuffer == null) _commandBuffer = new CommandBuffer();

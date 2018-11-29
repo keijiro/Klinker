@@ -1,4 +1,7 @@
-﻿Shader "Hidden/Klinker/Upsampler"
+// Klinker - Blackmagic DeckLink plugin for Unity
+// https://github.com/keijiro/Klinker
+
+Shader "Hidden/Klinker/Upsampler"
 {
     Properties
     {

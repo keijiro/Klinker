@@ -1,3 +1,6 @@
+// Klinker - Blackmagic DeckLink plugin for Unity
+// https://github.com/keijiro/Klinker
+
 #include "UnityCG.cginc"
 
 sampler2D _MainTex;

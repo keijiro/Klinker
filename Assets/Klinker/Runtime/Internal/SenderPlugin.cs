@@ -1,3 +1,6 @@
+// Klinker - Blackmagic DeckLink plugin for Unity
+// https://github.com/keijiro/Klinker
+
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
@@ -6,6 +9,7 @@ using System.Runtime.InteropServices;
 
 namespace Klinker
 {
+    // Wrapper class for native plugin sender functions
     sealed class SenderPlugin : IDisposable
     {
         #region Factory methods

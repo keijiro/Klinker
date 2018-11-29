@@ -1,10 +1,16 @@
+// Klinker - Blackmagic DeckLink plugin for Unity
+// https://github.com/keijiro/Klinker
+
 using UnityEngine;
 using UnityEngine.Rendering;
 
 namespace Klinker
 {
+    // Frame receiver class
+    // Retrieves input video frames from a DeckLink device and update a render
+    // texture with them.
     [AddComponentMenu("Klinker/Frame Receiver")]
-    public class FrameReceiver : MonoBehaviour
+    public sealed class FrameReceiver : MonoBehaviour
     {
         #region Editable attribute
 

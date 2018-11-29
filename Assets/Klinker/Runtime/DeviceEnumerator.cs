@@ -1,10 +1,15 @@
+// Klinker - Blackmagic DeckLink plugin for Unity
+// https://github.com/keijiro/Klinker
+
 using UnityEngine;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
 namespace Klinker
 {
-    public static class DeviceManager
+    // Device enumerator class
+    // Provides lists of available devices and video formats.
+    public static class DeviceEnumerator
     {
         #region Enumeration methods
 

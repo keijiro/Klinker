@@ -1,8 +1,13 @@
+// Klinker - Blackmagic DeckLink plugin for Unity
+// https://github.com/keijiro/Klinker
+
 using UnityEngine;
 using UnityEngine.Rendering;
 
 namespace Klinker
 {
+    // Blitter class
+    // Used to keep captured frames presented on a target display.
     sealed class Blitter : MonoBehaviour
     {
         #region Factory method
