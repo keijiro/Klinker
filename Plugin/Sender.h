@@ -2,6 +2,7 @@
 
 #include "Common.h"
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <mutex>
 #include <tuple>
@@ -69,8 +70,13 @@ namespace klinker
         {
             assert(output_ != nullptr);
             BMDReferenceStatus stat;
-            AssertSuccess(output_->GetReferenceStatus(&stat));
+            ShouldOK(output_->GetReferenceStatus(&stat));
             return stat & bmdReferenceLocked;
+        }
+
+        const std::string& GetErrorString() const
+        {
+            return error_;
         }
 
         #pragma endregion
@@ -83,13 +89,13 @@ namespace klinker
             assert(displayMode_ == nullptr);
             assert(frame_ == nullptr);
 
-            InitializeOutput(deviceIndex, formatIndex);
+            if (!InitializeOutput(deviceIndex, formatIndex)) return;
 
             // Prerolling
             frame_ = AllocateFrame();
             for (auto i = 0; i < preroll; i++) ScheduleFrame(frame_);
 
-            AssertSuccess(output_->StartScheduledPlayback(0, 1, 1));
+            ShouldOK(output_->StartScheduledPlayback(0, 1, 1));
         }
 
         void StartManualMode(int deviceIndex, int formatIndex)
@@ -98,19 +104,20 @@ namespace klinker
             assert(displayMode_ == nullptr);
             assert(frame_ == nullptr);
 
-            InitializeOutput(deviceIndex, formatIndex);
-            AssertSuccess(output_->StartScheduledPlayback(0, 1, 1));
+            if (!InitializeOutput(deviceIndex, formatIndex)) return;
+
+            ShouldOK(output_->StartScheduledPlayback(0, 1, 1));
         }
 
         void Stop()
         {
-            assert(output_ != nullptr);
-            assert(displayMode_ != nullptr);
-
             // Stop the output stream.
-            output_->StopScheduledPlayback(0, nullptr, 1);
-            output_->SetScheduledFrameCompletionCallback(nullptr);
-            output_->DisableVideoOutput();
+            if (output_ != nullptr)
+            {
+                output_->StopScheduledPlayback(0, nullptr, 1);
+                output_->SetScheduledFrameCompletionCallback(nullptr);
+                output_->DisableVideoOutput();
+            }
 
             // Release the internal objects.
             if (frame_ != nullptr)
@@ -119,17 +126,24 @@ namespace klinker
                 frame_ = nullptr;
             }
 
-            displayMode_->Release();
-            displayMode_ = nullptr;
+            if (displayMode_ != nullptr)
+            {
+                displayMode_->Release();
+                displayMode_ = nullptr;
+            }
 
-            output_->Release();
-            output_ = nullptr;
+            if (output_ != nullptr)
+            {
+                output_->Release();
+                output_ = nullptr;
+            }
         }
 
         void FeedFrame(void* frameData)
         {
             assert(output_ != nullptr);
             assert(displayMode_ != nullptr);
+            assert(error_.empty());
 
             // Allocate a new frame for the fed data.
             auto newFrame = AllocateFrame();
@@ -150,6 +164,13 @@ namespace klinker
 
                 // Note: We don't have to use the mutex because nothing here
                 // conflicts with the completion callback.
+
+            #if defined(_DEBUG)
+                // We shouldn't push too many frames to the scheduler.
+                unsigned int count;
+                ShouldOK(output_->GetBufferedVideoFrameCount(&count));
+                assert(count < 20);
+            #endif
             }
         }
 
@@ -157,7 +178,12 @@ namespace klinker
         {
             // Wait for completion of a specified frame.
             std::unique_lock<std::mutex> lock(mutex_);
-            condition_.wait(lock, [=]() { return counters_.completed >= frameNumber; });
+            auto res = condition_.wait_for(
+                lock, std::chrono::milliseconds(200),
+                [=]() { return counters_.completed >= frameNumber; }
+            );
+
+            if (!res) error_ = "Failed to synchronize to output refreshing.";
         }
 
         #pragma endregion
@@ -239,6 +265,7 @@ namespace klinker
         #pragma region Private members
 
         std::atomic<ULONG> refCount_ = 1;
+        std::string error_;
 
         IDeckLinkOutput* output_ = nullptr;
         IDeckLinkDisplayMode* displayMode_ = nullptr;
@@ -268,8 +295,8 @@ namespace klinker
         {
             auto width = displayMode_->GetWidth();
             auto height = displayMode_->GetHeight();
-            IDeckLinkMutableVideoFrame* frame;
-            AssertSuccess(output_->CreateVideoFrame(
+            IDeckLinkMutableVideoFrame* frame = nullptr;
+            ShouldOK(output_->CreateVideoFrame(
                 width, height, width * 2,
                 bmdFormat8BitYUV, bmdFrameFlagDefault, &frame
             ));
@@ -280,66 +307,102 @@ namespace klinker
         {
             auto width = displayMode_->GetWidth();
             auto height = displayMode_->GetHeight();
-            void* pointer;
-            AssertSuccess(frame->GetBytes(&pointer));
+            void* pointer = nullptr;
+            ShouldOK(frame->GetBytes(&pointer));
             std::memcpy(pointer, data, (std::size_t)2 * width * height);
         }
 
         void ScheduleFrame(IDeckLinkMutableVideoFrame* frame)
         {
             auto time = frameDuration_ * counters_.queued++;
-            output_->ScheduleVideoFrame(frame, time, frameDuration_, timeScale_);
+            ShouldOK(output_->ScheduleVideoFrame(
+                frame, time, frameDuration_, timeScale_
+            ));
         }
 
-        void InitializeOutput(int deviceIndex, int formatIndex)
+        bool InitializeOutput(int deviceIndex, int formatIndex)
         {
             // Device iterator
             IDeckLinkIterator* iterator;
-            AssertSuccess(CoCreateInstance(
+            auto res = CoCreateInstance(
                 CLSID_CDeckLinkIterator, nullptr, CLSCTX_ALL,
                 IID_IDeckLinkIterator, reinterpret_cast<void**>(&iterator)
-            ));
+            );
+            assert(res == S_OK);
 
             // Iterate until reaching the specified index.
             IDeckLink* device = nullptr;
             for (auto i = 0; i <= deviceIndex; i++)
             {
                 if (device != nullptr) device->Release();
-                AssertSuccess(iterator->Next(&device));
+                res = iterator->Next(&device);
+
+                if (res != S_OK)
+                {
+                    error_ = "Invalid device index.";
+                    iterator->Release();
+                    return false;
+                }
             }
 
             iterator->Release(); // The iterator is no longer needed.
 
             // Output interface of the specified device
-            AssertSuccess(device->QueryInterface(
-                IID_IDeckLinkOutput, reinterpret_cast<void**>(&output_)
-            ));
+            res = device->QueryInterface(
+                IID_IDeckLinkOutput,
+                reinterpret_cast<void**>(&output_)
+            );
 
             device->Release(); // The device object is no longer needed.
 
+            if (res != S_OK)
+            {
+                error_ = "Device has no output.";
+                return false;
+            }
+
             // Display mode iterator
             IDeckLinkDisplayModeIterator* dmIterator;
-            AssertSuccess(output_->GetDisplayModeIterator(&dmIterator));
+            res = output_->GetDisplayModeIterator(&dmIterator);
+            assert(res == S_OK);
 
             // Iterate until reaching the specified index.
             for (auto i = 0; i <= formatIndex; i++)
             {
                 if (displayMode_ != nullptr) displayMode_->Release();
-                AssertSuccess(dmIterator->Next(&displayMode_));
+                res = dmIterator->Next(&displayMode_);
+
+                if (res != S_OK)
+                {
+                    error_ = "Invalid format index.";
+                    device->Release();
+                    dmIterator->Release();
+                    return false;
+                }
             }
 
             // Get the frame rate defined in the display mode.
-            AssertSuccess(displayMode_->GetFrameRate(&frameDuration_, &timeScale_));
+            res = displayMode_->GetFrameRate(&frameDuration_, &timeScale_);
+            assert(res == S_OK);
 
             dmIterator->Release(); // The iterator is no longer needed.
 
             // Set this object as a frame completion callback.
-            AssertSuccess(output_->SetScheduledFrameCompletionCallback(this));
+            res = output_->SetScheduledFrameCompletionCallback(this);
+            assert(res == S_OK);
 
             // Enable the video output.
-            AssertSuccess(output_->EnableVideoOutput(
+            res = output_->EnableVideoOutput(
                 displayMode_->GetDisplayMode(), bmdVideoOutputFlagDefault
-            ));
+            );
+
+            if (res != S_OK)
+            {
+                error_ = "Can't open output device (possibly already used).";
+                return false;
+            }
+
+            return true;
         }
 
         #pragma endregion

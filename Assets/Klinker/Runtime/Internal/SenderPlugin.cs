@@ -31,6 +31,7 @@ namespace Klinker
         SenderPlugin(IntPtr plugin)
         {
             _plugin = plugin;
+            CheckError();
         }
 
         ~SenderPlugin()
@@ -78,11 +79,27 @@ namespace Klinker
         public unsafe void FeedFrame<T>(NativeArray<T> data) where T : struct
         {
             FeedFrameToSender(_plugin, (IntPtr)data.GetUnsafeReadOnlyPtr());
+            CheckError();
         }
 
         public void WaitCompletion(ulong frameNumber)
         {
             WaitSenderCompletion(_plugin, frameNumber);
+            CheckError();
+        }
+
+        #endregion
+
+        #region Error handling
+
+        void CheckError()
+        {
+            if (_plugin == IntPtr.Zero) return;
+            var error = GetSenderError(_plugin);
+            if (error == IntPtr.Zero) return;
+            var message = Marshal.PtrToStringAnsi(error);
+            Dispose();
+            throw new InvalidOperationException(message);
         }
 
         #endregion
@@ -120,6 +137,9 @@ namespace Klinker
 
         [DllImport("Klinker")]
         static extern void WaitSenderCompletion(IntPtr sender, ulong frameNumber);
+
+        [DllImport("Klinker")]
+        static extern IntPtr GetSenderError(IntPtr sender);
 
         #endregion
     }

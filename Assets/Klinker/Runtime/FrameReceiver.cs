@@ -129,14 +129,16 @@ namespace Klinker
 
         void OnDestroy()
         {
-            _plugin.Dispose();
+            _plugin?.Dispose();
             Util.Destroy(_sourceTexture);
             Util.Destroy(_receivedTexture);
-            Destroy(_upsampler);
+            Util.Destroy(_upsampler);
         }
 
         void Update()
         {
+            if (_plugin == null) return;
+
             // Update input queue; Break if it's not ready.
             if (!UpdateQueue()) return;
 

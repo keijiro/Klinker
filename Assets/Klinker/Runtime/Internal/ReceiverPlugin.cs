@@ -15,6 +15,7 @@ namespace Klinker
         public ReceiverPlugin(int device, int format)
         {
             _plugin = CreateReceiver(device, format);
+            CheckError();
         }
 
         ~ReceiverPlugin()
@@ -76,6 +77,21 @@ namespace Klinker
         public void DequeueFrame()
         {
             DequeueReceiverFrame(_plugin);
+            CheckError();
+        }
+
+        #endregion
+
+        #region Error handling
+
+        void CheckError()
+        {
+            if (_plugin == IntPtr.Zero) return;
+            var error = GetReceiverError(_plugin);
+            if (error == IntPtr.Zero) return;
+            var message = Marshal.PtrToStringAnsi(error);
+            Dispose();
+            throw new InvalidOperationException(message);
         }
 
         #endregion
@@ -116,6 +132,9 @@ namespace Klinker
 
         [DllImport("Klinker")]
         static extern IntPtr GetTextureUpdateCallback();
+
+        [DllImport("Klinker")]
+        static extern IntPtr GetReceiverError(IntPtr sender);
 
         #endregion
     }

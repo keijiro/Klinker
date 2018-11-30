@@ -208,19 +208,19 @@ namespace Klinker
 
         void OnDestroy()
         {
-            Destroy(_subsampler);
+            Util.Destroy(_subsampler);
 
             if (_oddField != null) RenderTexture.ReleaseTemporary(_oddField);
 
-            _plugin.Dispose();
+            _plugin?.Dispose();
 
             if (_targetRT != null)
             {
                 TargetCamera.targetTexture = null;
-                Destroy(_targetRT);
+                Util.Destroy(_targetRT);
             }
 
-            Destroy(_blitter);
+            Util.Destroy(_blitter);
 
             // We don't have to care about the frame queue.
             // It will be automatically disposed.
@@ -228,6 +228,8 @@ namespace Klinker
 
         void Update()
         {
+            if (_plugin == null) return;
+
             var frame = EncodeFrame(TargetCamera.targetTexture);
 
             if (frame != null)

@@ -12,7 +12,7 @@ namespace klinker
 
         void Add(T* instance)
         {
-            static int counter;
+            static int counter = 1;
             map_[counter++] = instance;
         }
 

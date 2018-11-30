@@ -43,7 +43,7 @@ namespace klinker
         {
             BMDTimeValue duration;
             BMDTimeScale scale;
-            AssertSuccess(displayMode_->GetFrameRate(&duration, &scale));
+            ShouldOK(displayMode_->GetFrameRate(&duration, &scale));
             return static_cast<float>(scale) / duration;
         }
 
@@ -65,8 +65,13 @@ namespace klinker
             assert(displayMode_ != nullptr);
             std::lock_guard<std::mutex> lock(mutex_);
             BSTR name;
-            AssertSuccess(displayMode_->GetName(&name));
+            ShouldOK(displayMode_->GetName(&name));
             return name;
+        }
+
+        const std::string& GetErrorString() const
+        {
+            return error_;
         }
 
         #pragma endregion
@@ -104,26 +109,33 @@ namespace klinker
             assert(input_ == nullptr);
             assert(displayMode_ == nullptr);
 
-            InitializeInput(deviceIndex, formatIndex);
-            AssertSuccess(input_->StartStreams());
+            if (!InitializeInput(deviceIndex, formatIndex)) return;
+
+            ShouldOK(input_->StartStreams());
         }
 
         void Stop()
         {
-            assert(input_ != nullptr);
-            assert(displayMode_ != nullptr);
-
             // Stop the input stream.
-            input_->StopStreams();
-            input_->SetCallback(nullptr);
-            input_->DisableVideoInput();
+            if (input_ != nullptr)
+            {
+                input_->StopStreams();
+                input_->SetCallback(nullptr);
+                input_->DisableVideoInput();
+            }
 
             // Release the internal objects.
-            displayMode_->Release();
-            displayMode_ = nullptr;
+            if (displayMode_ != nullptr)
+            {
+                displayMode_->Release();
+                displayMode_ = nullptr;
+            }
 
-            input_->Release();
-            input_ = nullptr;
+            if (input_ != nullptr)
+            {
+                input_->Release();
+                input_ = nullptr;
+            }
         }
 
         #pragma endregion
@@ -214,7 +226,7 @@ namespace klinker
 
             // Retrieve the data pointer.
             std::uint8_t* source;
-            AssertSuccess(videoFrame->GetBytes(reinterpret_cast<void**>(&source)));
+            ShouldOK(videoFrame->GetBytes(reinterpret_cast<void**>(&source)));
 
             // Allocate and push a new frame to the frame queue.
             std::lock_guard<std::mutex> lock(mutex_);
@@ -230,6 +242,7 @@ namespace klinker
         #pragma region Private members
 
         std::atomic<ULONG> refCount_ = 1;
+        std::string error_;
 
         IDeckLinkInput* input_ = nullptr;
         IDeckLinkDisplayMode* displayMode_ = nullptr;
@@ -239,54 +252,89 @@ namespace klinker
 
         static const std::size_t maxQueueLength_ = 5;
 
-        void InitializeInput(int deviceIndex, int formatIndex)
+        bool InitializeInput(int deviceIndex, int formatIndex)
         {
             // Device iterator
             IDeckLinkIterator* iterator;
-            AssertSuccess(CoCreateInstance(
+            auto res = CoCreateInstance(
                 CLSID_CDeckLinkIterator, nullptr, CLSCTX_ALL,
                 IID_IDeckLinkIterator, reinterpret_cast<void**>(&iterator)
-            ));
+            );
+
+            assert(res == S_OK);
 
             // Iterate until reaching the specified index.
             IDeckLink* device = nullptr;
             for (auto i = 0; i <= deviceIndex; i++)
             {
                 if (device != nullptr) device->Release();
-                AssertSuccess(iterator->Next(&device));
+                res = iterator->Next(&device);
+
+                if (res != S_OK)
+                {
+                    error_ = "Invalid device index.";
+                    iterator->Release();
+                    return false;
+                }
             }
 
             iterator->Release(); // The iterator is no longer needed.
 
-            // Output interface of the specified device
-            AssertSuccess(device->QueryInterface(
-                IID_IDeckLinkInput, reinterpret_cast<void**>(&input_)
-            ));
+            // Input interface of the specified device
+            res = device->QueryInterface(
+                IID_IDeckLinkInput,
+                reinterpret_cast<void**>(&input_)
+            );
 
             device->Release(); // The device object is no longer needed.
 
+            if (res != S_OK)
+            {
+                error_ = "Device has no input.";
+                return false;
+            }
+
             // Display mode iterator
             IDeckLinkDisplayModeIterator* dmIterator;
-            AssertSuccess(input_->GetDisplayModeIterator(&dmIterator));
+            res = input_->GetDisplayModeIterator(&dmIterator);
+
+            assert(res == S_OK);
 
             // Iterate until reaching the specified index.
             for (auto i = 0; i <= formatIndex; i++)
             {
                 if (displayMode_ != nullptr) displayMode_->Release();
-                AssertSuccess(dmIterator->Next(&displayMode_));
+                res = dmIterator->Next(&displayMode_);
+
+                if (res != S_OK)
+                {
+                    error_ = "Invalid format index.";
+                    device->Release();
+                    dmIterator->Release();
+                    return false;
+                }
             }
 
             dmIterator->Release(); // The iterator is no longer needed.
 
             // Set this object as a frame input callback.
-            AssertSuccess(input_->SetCallback(this));
+            res = input_->SetCallback(this);
+            assert(res == S_OK);
 
             // Enable the video input.
-            AssertSuccess(input_->EnableVideoInput(
+            res = input_->EnableVideoInput(
                 displayMode_->GetDisplayMode(),
                 bmdFormat8BitYUV,
                 bmdVideoInputEnableFormatDetection
-            ));
+            );
+
+            if (res != S_OK)
+            {
+                error_ = "Can't open input device (possibly already used).";
+                return false;
+            }
+
+            return true;
         }
 
         #pragma endregion

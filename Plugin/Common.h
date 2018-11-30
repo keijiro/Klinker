@@ -8,9 +8,8 @@
 
 namespace klinker
 {
-    // Assert function for COM operations
-    inline void AssertSuccess(HRESULT result)
+    inline void ShouldOK(HRESULT result)
     {
-        assert(SUCCEEDED(result));
+        assert(result == S_OK);
     }
 }

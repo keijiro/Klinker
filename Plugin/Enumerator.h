@@ -40,7 +40,7 @@ namespace klinker
 
             // Device iterator
             IDeckLinkIterator* iterator;
-            AssertSuccess(CoCreateInstance(
+            ShouldOK(CoCreateInstance(
                 CLSID_CDeckLinkIterator, nullptr, CLSCTX_ALL,
                 IID_IDeckLinkIterator, reinterpret_cast<void**>(&iterator)
             ));
@@ -50,7 +50,7 @@ namespace klinker
             while (iterator->Next(&device) == S_OK)
             {
                 BSTR name;
-                AssertSuccess(device->GetDisplayName(&name));
+                ShouldOK(device->GetDisplayName(&name));
                 names_.push_back(name);
                 device->Release();
             }
@@ -66,7 +66,7 @@ namespace klinker
 
             // Device iterator
             IDeckLinkIterator* iterator;
-            AssertSuccess(CoCreateInstance(
+            ShouldOK(CoCreateInstance(
                 CLSID_CDeckLinkIterator, nullptr, CLSCTX_ALL,
                 IID_IDeckLinkIterator, reinterpret_cast<void**>(&iterator)
             ));
@@ -79,7 +79,6 @@ namespace klinker
                 if (iterator->Next(&device) != S_OK)
                 {
                     // Wrong device index: Return an empty list.
-                    device->Release();
                     iterator->Release();
                     return;
                 }
@@ -89,7 +88,7 @@ namespace klinker
 
             // Output interface of the specified device
             IDeckLinkOutput* output;
-            AssertSuccess(device->QueryInterface(
+            ShouldOK(device->QueryInterface(
                 IID_IDeckLinkOutput, reinterpret_cast<void**>(&output)
             ));
 
@@ -97,7 +96,7 @@ namespace klinker
 
             // Display mode iterator
             IDeckLinkDisplayModeIterator* dmIterator;
-            AssertSuccess(output->GetDisplayModeIterator(&dmIterator));
+            ShouldOK(output->GetDisplayModeIterator(&dmIterator));
 
             output->Release(); // The output interface is no longer needed.
 
@@ -106,7 +105,7 @@ namespace klinker
             while (dmIterator->Next(&mode) == S_OK)
             {
                 BSTR name;
-                AssertSuccess(mode->GetName(&name));
+                ShouldOK(mode->GetName(&name));
                 names_.push_back(name);
                 mode->Release();
             }
