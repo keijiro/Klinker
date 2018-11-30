@@ -40,10 +40,14 @@ namespace klinker
 
             // Device iterator
             IDeckLinkIterator* iterator;
-            ShouldOK(CoCreateInstance(
+            auto res = CoCreateInstance(
                 CLSID_CDeckLinkIterator, nullptr, CLSCTX_ALL,
                 IID_IDeckLinkIterator, reinterpret_cast<void**>(&iterator)
-            ));
+            );
+
+            // If the driver is not found, return an empty list
+            // without emitting any error.
+            if (res != S_OK) return;
 
             // Device name enumeration
             IDeckLink* device;
@@ -66,10 +70,14 @@ namespace klinker
 
             // Device iterator
             IDeckLinkIterator* iterator;
-            ShouldOK(CoCreateInstance(
+            auto res = CoCreateInstance(
                 CLSID_CDeckLinkIterator, nullptr, CLSCTX_ALL,
                 IID_IDeckLinkIterator, reinterpret_cast<void**>(&iterator)
-            ));
+            );
+
+            // If the driver is not found, return an empty list
+            // without emitting any error.
+            if (res != S_OK) return;
 
             // Iterate until reaching the specified index.
             IDeckLink* device = nullptr;

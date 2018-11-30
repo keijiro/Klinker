@@ -335,7 +335,12 @@ namespace klinker
                 CLSID_CDeckLinkIterator, nullptr, CLSCTX_ALL,
                 IID_IDeckLinkIterator, reinterpret_cast<void**>(&iterator)
             );
-            assert(res == S_OK);
+
+            if (res != S_OK)
+            {
+                error_ = "DeckLink driver is not found.";
+                return false;
+            }
 
             // Iterate until reaching the specified index.
             IDeckLink* device = nullptr;
