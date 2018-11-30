@@ -70,6 +70,10 @@ namespace Klinker
             return GetTextureUpdateCallback();
         } }
 
+        public int DropCount { get {
+            return CountDroppedReceiverFrames(_plugin);
+        } }
+
         #endregion
 
         #region Public methods
@@ -132,6 +136,9 @@ namespace Klinker
 
         [DllImport("Klinker")]
         static extern IntPtr GetTextureUpdateCallback();
+
+        [DllImport("Klinker")]
+        static extern int CountDroppedReceiverFrames(IntPtr receiver);
 
         [DllImport("Klinker")]
         static extern IntPtr GetReceiverError(IntPtr sender);

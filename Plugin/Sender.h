@@ -74,6 +74,11 @@ namespace klinker
             return stat & bmdReferenceLocked;
         }
 
+        int CountDroppedFrames() const
+        {
+            return dropCount_;
+        }
+
         const std::string& GetErrorString() const
         {
             return error_;
@@ -231,15 +236,16 @@ namespace klinker
             BMDOutputFrameCompletionResult result
         ) override
         {
-            #if defined(_DEBUG)
-
             if (result == bmdOutputFrameDisplayedLate)
-                std::printf("Frame %p was displayed late.\n", completedFrame);
+            {
+                DebugLog("Frame was displayed late.");
+                dropCount_++;
+            }
 
             if (result == bmdOutputFrameDropped)
-                std::printf("Frame %p was dropped.\n", completedFrame);
-
-            #endif
+            {
+                DebugLog("Frame was dropped.");
+            }
 
             std::lock_guard<std::mutex> lock(mutex_);
 
@@ -273,6 +279,7 @@ namespace klinker
 
         BMDTimeValue frameDuration_ = 0;
         BMDTimeScale timeScale_ = 1;
+        int dropCount_ = 0;
 
         std::mutex mutex_;
         std::condition_variable condition_;

@@ -3,7 +3,6 @@
 #include "Receiver.h"
 #include "Sender.h"
 #include "Unity/IUnityRenderingExtensions.h"
-#include <consoleapi.h>
 
 #pragma region Local functions
 
@@ -47,19 +46,7 @@ namespace
 
 #pragma region Plugin common functions
 
-extern "C" void UNITY_INTERFACE_EXPORT
-    UNITY_INTERFACE_API UnityPluginLoad(IUnityInterfaces* interfaces)
-{
-#if defined(_DEBUG)
-    // Open a console for debug logging.
-    AllocConsole();
-    FILE* pConsole;
-    freopen_s(&pConsole, "CONOUT$", "wb", stdout);
-#endif
-}
-
-extern "C" UnityRenderingEventAndData
-    UNITY_INTERFACE_EXPORT GetTextureUpdateCallback()
+extern "C" UnityRenderingEventAndData UNITY_INTERFACE_EXPORT GetTextureUpdateCallback()
 {
     return TextureUpdateCallback;
 }
@@ -164,6 +151,13 @@ extern "C" void UNITY_INTERFACE_EXPORT DequeueReceiverFrame(void* receiver)
     instance->DequeueFrame();
 }
 
+extern "C" const int UNITY_INTERFACE_EXPORT CountDroppedReceiverFrames(void* receiver)
+{
+    if (receiver == nullptr) return 0;
+    auto instance = reinterpret_cast<klinker::Receiver*>(receiver);
+    return instance->CountDroppedFrames();
+}
+
 extern "C" const void UNITY_INTERFACE_EXPORT * GetReceiverError(void* receiver)
 {
     if (receiver == nullptr) return nullptr;
@@ -245,6 +239,13 @@ extern "C" void UNITY_INTERFACE_EXPORT WaitSenderCompletion(void* sender, std::u
     if (sender == nullptr) return;
     auto instance = reinterpret_cast<klinker::Sender*>(sender);
     instance->WaitFrameCompletion(frameNumber);
+}
+
+extern "C" const int UNITY_INTERFACE_EXPORT CountDroppedSenderFrames(void* sender)
+{
+    if (sender == nullptr) return 0;
+    auto instance = reinterpret_cast<klinker::Sender*>(sender);
+    return instance->CountDroppedFrames();
 }
 
 extern "C" const void UNITY_INTERFACE_EXPORT * GetSenderError(void* sender)

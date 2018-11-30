@@ -19,13 +19,13 @@ namespace Klinker
 
         [SerializeField] int _deviceSelection = 0;
         [SerializeField] int _formatSelection = 0;
-        [SerializeField, Range(1, 10)] int _queueLength = 3;
+        [SerializeField, Range(1, 6)] int _queueLength = 3;
         [SerializeField] bool _lowLatencyMode = false;
         [SerializeField] bool _isMaster = false;
 
         #endregion
 
-        #region Public properties
+        #region Runtime properties
 
         public bool isReferenceLocked { get {
             return _plugin?.IsReferenceLocked ?? false;
@@ -146,6 +146,7 @@ namespace Klinker
         RenderTexture _targetRT;
         GameObject _blitter;
         ulong _frameCount;
+        DropDetector _dropDetector;
 
         #endregion
 
@@ -162,6 +163,7 @@ namespace Klinker
                     CreateAsyncSender(_deviceSelection, _formatSelection, _queueLength);
 
             _subsampler = new Material(Shader.Find("Hidden/Klinker/Subsampler"));
+            _dropDetector = new DropDetector(gameObject.name);
 
             var dim = _plugin.FrameDimensions;
 
@@ -239,6 +241,8 @@ namespace Klinker
             }
 
             ProcessFrameQueue(_lowLatencyMode);
+
+            _dropDetector.Update(_plugin.DropCount);
         }
 
         #endregion

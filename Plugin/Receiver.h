@@ -69,6 +69,11 @@ namespace klinker
             return name;
         }
 
+        int CountDroppedFrames() const
+        {
+            return dropCount_;
+        }
+
         const std::string& GetErrorString() const
         {
             return error_;
@@ -216,7 +221,8 @@ namespace klinker
 
             if (frameQueue_.size() >= maxQueueLength_)
             {
-                std::printf("Overqueued: Arrived frame %p was dropped.", videoFrame);
+                DebugLog("Overqueuing: Arrived frame was dropped.");
+                dropCount_++;
                 return S_OK;
             }
 
@@ -250,7 +256,8 @@ namespace klinker
         std::queue<std::vector<uint8_t>> frameQueue_;
         mutable std::mutex mutex_;
 
-        static const std::size_t maxQueueLength_ = 5;
+        static const std::size_t maxQueueLength_ = 8;
+        int dropCount_ = 0;
 
         bool InitializeInput(int deviceIndex, int formatIndex)
         {

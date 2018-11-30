@@ -72,6 +72,10 @@ namespace Klinker
             return IsSenderReferenceLocked(_plugin) != 0;
         } }
 
+        public int DropCount { get {
+            return CountDroppedSenderFrames(_plugin);
+        } }
+
         #endregion
 
         #region Public methods
@@ -137,6 +141,9 @@ namespace Klinker
 
         [DllImport("Klinker")]
         static extern void WaitSenderCompletion(IntPtr sender, ulong frameNumber);
+
+        [DllImport("Klinker")]
+        static extern int CountDroppedSenderFrames(IntPtr sender);
 
         [DllImport("Klinker")]
         static extern IntPtr GetSenderError(IntPtr sender);

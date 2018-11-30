@@ -15,7 +15,7 @@ namespace Klinker
         #region Editable attribute
 
         [SerializeField] int _deviceSelection = 0;
-        [SerializeField, Range(1, 10)] int _queueLength = 3;
+        [SerializeField, Range(1, 6)] int _queueLength = 3;
 
         #endregion
 
@@ -78,6 +78,14 @@ namespace Klinker
                     _prerolled = true;
             }
 
+            // Overqueuing detection and recovery
+            var maxQueue = _queueLength + Mathf.Min(3, _queueLength);
+            while (_plugin.QueuedFrameCount > maxQueue)
+            {
+                _plugin.DequeueFrame();
+                _dropDetector.Warn();
+            }
+
             // Calculate the duration of input frames.
             var duration = 1 / _plugin.FrameRate;
 
@@ -94,6 +102,7 @@ namespace Klinker
                 if (_plugin.QueuedFrameCount == 1)
                 {
                     _prerolled = false;
+                    _dropDetector.Warn();
                     break;
                 }
 
@@ -116,6 +125,7 @@ namespace Klinker
         Material _upsampler;
         Texture2D _sourceTexture;
         MaterialPropertyBlock _propertyBlock;
+        DropDetector _dropDetector;
 
         #endregion
 
@@ -125,6 +135,7 @@ namespace Klinker
         {
             _plugin = new ReceiverPlugin(_deviceSelection, 0);
             _upsampler = new Material(Shader.Find("Hidden/Klinker/Upsampler"));
+            _dropDetector = new DropDetector(gameObject.name);
         }
 
         void OnDestroy()
@@ -190,6 +201,8 @@ namespace Klinker
                 _propertyBlock.SetTexture(_targetMaterialProperty, receiver);
                 _targetRenderer.SetPropertyBlock(_propertyBlock);
             }
+
+            _dropDetector.Update(_plugin.DropCount);
         }
 
         #endregion

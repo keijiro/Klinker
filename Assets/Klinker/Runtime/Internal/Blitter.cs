@@ -12,8 +12,7 @@ namespace Klinker
     {
         #region Factory method
 
-        static System.Type[] _initialComponents =
-            { typeof(Camera), typeof(Blitter) };
+        static System.Type[] _initialComponents = { typeof(Camera), typeof(Blitter) };
 
         public static GameObject CreateInstance(Camera source)
         {
