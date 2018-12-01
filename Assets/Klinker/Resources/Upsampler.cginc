@@ -27,19 +27,56 @@ half3 YUV2RGB(half3 yuv)
 #endif
 }
 
-half4 Fragment_UYVY(v2f_img input) : SV_Target
+half4 Fragment(v2f_img input) : SV_Target
 {
     float2 uv = input.uv;
-    uv.y = 1 - uv.y;
+    float4 ts = _MainTex_TexelSize;
 
-#if defined(UPSAMPLER_INTERLACE_ODD)
-    uv.y = (floor(uv.y * _MainTex_TexelSize.w / 2) * 2 + 0.5) * _MainTex_TexelSize.y;
-#elif defined(UPSAMPLER_INTERLACE_EVEN)
-    uv.y = (floor(uv.y * _MainTex_TexelSize.w / 2) * 2 + 1.5) * _MainTex_TexelSize.y;
+#if UNITY_UV_STARTS_AT_TOP
+    uv.y = 1 - uv.y;
 #endif
 
+    // Deinterlacing
+    //
+    // * Sampling pattern for odd field
+    //
+    //     |   |
+    // 5.0 +   +
+    //     | x | 4.5 : Sample point for 4.0 - 6.0
+    // 4.0 +---+
+    //     |   |
+    // 3.0 +   +
+    //     | x | 2.5 : Sample point for 2.0 - 4.0
+    // 2.0 +---+
+    //     |   |
+    // 1.0 +   +
+    //     | x | 0.5 : Sample point for 0.0 - 2.0
+    // 0.0 +---+
+    //
+    // * Sampling pattern for even field
+    //
+    //     | x | 5.5 : Sample point for 5.0 - 7.0
+    // 5.0 +---+
+    //     |   |
+    // 4.0 +   +
+    //     | x | 3.5 : Sample point for 3.0 - 5.0
+    // 3.0 +---+
+    //     |   |
+    // 2.0 +   +
+    //     | x | 1.5 : Sample point for 1.0 - 3.0
+    // 1.0 +---+
+    //     |   |
+    // 0.0 +---+
+
+#if defined(KLINKER_DEINTERLACE_ODD)
+    uv.y = (floor((uv.y * ts.w + 0) / 2) * 2 + 0.5) * ts.y;
+#elif defined(KLINKER_DEINTERLACE_EVEN)
+    uv.y = (floor((uv.y * ts.w + 1) / 2) * 2 - 0.5) * ts.y;
+#endif
+
+    // Upsample from 4:2:2
     half4 uyvy = tex2D(_MainTex, uv);
-    bool sel = frac(uv.x * _MainTex_TexelSize.z) < 0.5;
+    bool sel = frac(uv.x * ts.z) < 0.5;
     half3 yuv = sel ? uyvy.yxz : uyvy.wxz;
 
     return half4(YUV2RGB(yuv), 1);

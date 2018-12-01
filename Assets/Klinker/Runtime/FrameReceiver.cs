@@ -92,8 +92,8 @@ namespace Klinker
             // Advane the frame time.
             _frameTime += Time.deltaTime;
 
-            // Swap the field.
-            _fieldCount ^= 1;
+            // Move to the even field.
+            _fieldCount = 1;
 
             // Dequeue input frames that are in the previous frame duration.
             while (_frameTime >= duration)
@@ -110,7 +110,7 @@ namespace Klinker
                 _plugin.DequeueFrame();
                 _frameTime -= duration;
 
-                // Restart from the odd field.
+                // Move back to the odd field.
                 _fieldCount = 0;
             }
 
@@ -168,7 +168,10 @@ namespace Klinker
             // Source texture lazy initialization
             if (_sourceTexture == null)
             {
-                _sourceTexture = new Texture2D(dimensions.x / 2, dimensions.y);
+                _sourceTexture = new Texture2D(
+                    dimensions.x / 2, dimensions.y,
+                    TextureFormat.RGBA32, false
+                );
                 _sourceTexture.filterMode = FilterMode.Point;
             }
 

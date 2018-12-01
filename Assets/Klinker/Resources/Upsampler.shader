@@ -14,7 +14,7 @@ Shader "Hidden/Klinker/Upsampler"
         {
             CGPROGRAM
             #pragma vertex vert_img
-            #pragma fragment Fragment_UYVY
+            #pragma fragment Fragment
             #pragma multi_compile _ UNITY_COLORSPACE_GAMMA
             #include "Upsampler.cginc"
             ENDCG
@@ -23,9 +23,9 @@ Shader "Hidden/Klinker/Upsampler"
         {
             CGPROGRAM
             #pragma vertex vert_img
-            #pragma fragment Fragment_UYVY
+            #pragma fragment Fragment
             #pragma multi_compile _ UNITY_COLORSPACE_GAMMA
-            #define UPSAMPLER_INTERLACE_ODD
+            #define KLINKER_DEINTERLACE_ODD
             #include "Upsampler.cginc"
             ENDCG
         }
@@ -33,9 +33,9 @@ Shader "Hidden/Klinker/Upsampler"
         {
             CGPROGRAM
             #pragma vertex vert_img
-            #pragma fragment Fragment_UYVY
+            #pragma fragment Fragment
             #pragma multi_compile _ UNITY_COLORSPACE_GAMMA
-            #define UPSAMPLER_INTERLACE_EVEN
+            #define KLINKER_DEINTERLACE_EVEN
             #include "Upsampler.cginc"
             ENDCG
         }
