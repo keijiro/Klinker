@@ -55,9 +55,9 @@ namespace klinker
             return { displayMode_->GetWidth(), displayMode_->GetHeight() };
         }
 
-        float GetFrameRate() const
+        std::int64_t GetFrameDuration() const
         {
-            return static_cast<float>(timeScale_) / frameDuration_;
+            return flicksPerSecond * frameDuration_ / timeScale_;
         }
 
         bool IsProgressive() const

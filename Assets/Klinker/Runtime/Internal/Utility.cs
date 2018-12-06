@@ -9,6 +9,12 @@ namespace Klinker
     // Internal utility functions
     static class Util
     {
+        public const long FlicksPerSecond = 705600000;
+
+        public static long DeltaTimeInFlicks { get {
+            return (long)((double)Time.deltaTime * FlicksPerSecond);
+        } }
+
         public static void Destroy(Object obj)
         {
             if (obj == null) return;
@@ -21,8 +27,7 @@ namespace Klinker
 
         static CommandBuffer _commandBuffer;
 
-        public static void
-            IssueTextureUpdateEvent(System.IntPtr callback, Texture texture, uint userData)
+        public static void IssueTextureUpdateEvent(System.IntPtr callback, Texture texture, uint userData)
         {
             if (_commandBuffer == null) _commandBuffer = new CommandBuffer();
 

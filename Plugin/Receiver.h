@@ -39,12 +39,12 @@ namespace klinker
             return { displayMode_->GetWidth(), displayMode_->GetHeight() };
         }
 
-        float GetFrameRate() const
+        std::int64_t GetFrameDuration() const
         {
             BMDTimeValue duration;
             BMDTimeScale scale;
             ShouldOK(displayMode_->GetFrameRate(&duration, &scale));
-            return static_cast<float>(scale) / duration;
+            return flicksPerSecond * duration / scale;
         }
 
         bool IsProgressive() const

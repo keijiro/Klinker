@@ -9,6 +9,9 @@
 
 namespace klinker
 {
+    // https://github.com/OculusVR/Flicks
+    const std::int64_t flicksPerSecond = 705600000;
+
     inline void ShouldOK(HRESULT result)
     {
         assert(result == S_OK);

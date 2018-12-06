@@ -60,8 +60,8 @@ namespace Klinker
             );
         } }
 
-        public float FrameRate { get {
-            return GetSenderFrameRate(_plugin);
+        public long FrameDuration { get {
+            return GetSenderFrameDuration(_plugin);
         } }
 
         public bool IsProgressive { get {
@@ -128,7 +128,7 @@ namespace Klinker
         static extern int GetSenderFrameHeight(IntPtr sender);
 
         [DllImport("Klinker")]
-        static extern float GetSenderFrameRate(IntPtr sender);
+        static extern long GetSenderFrameDuration(IntPtr sender);
 
         [DllImport("Klinker")]
         static extern int IsSenderProgressive(IntPtr sender);

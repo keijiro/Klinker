@@ -27,6 +27,12 @@ namespace Klinker
 
         #region Runtime properties
 
+        static public FrameSender master { get; private set; }
+
+        public long frameDuration { get {
+            return _plugin?.FrameDuration ?? 0;
+        } }
+
         public bool isReferenceLocked { get {
             return _plugin?.IsReferenceLocked ?? false;
         } }
@@ -192,9 +198,22 @@ namespace Klinker
 
             // Master sender coroutine
 
-            // Set target frame rate (using captureFramerate) and stop v-sync.
-            var fps = Mathf.CeilToInt(_plugin.FrameRate);
+            // Promote this instance to master.
+            // Check the frame duration if there is another master.
+            var duration = _plugin.FrameDuration;
+            if (master != null && master.frameDuration != duration)
+                Debug.LogError(
+                    "Master frame rate mismatch. When using multiple master " +
+                    "senders, they should have the exact same frame rate."
+                );
+            master = this;
+
+            // Calculate the frame rate.
+            // We prefer using ceiling values (i.e. 59.94 => 60)
+            var fps = (int)((Util.FlicksPerSecond + duration - 1) / duration);
             if (!_plugin.IsProgressive) fps *= 2;
+
+            // Set target frame rate (using captureFramerate) and stop v-sync.
             Time.captureFramerate = fps;
             QualitySettings.vSyncCount = 0;
 
@@ -210,6 +229,8 @@ namespace Klinker
 
         void OnDestroy()
         {
+            if (_isMaster) master = null;
+
             Util.Destroy(_subsampler);
 
             if (_oddField != null) RenderTexture.ReleaseTemporary(_oddField);

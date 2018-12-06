@@ -57,15 +57,13 @@ extern "C" UnityRenderingEventAndData UNITY_INTERFACE_EXPORT GetTextureUpdateCal
 
 namespace { klinker::Enumerator enumerator_; }
 
-extern "C" int UNITY_INTERFACE_EXPORT
-    RetrieveDeviceNames(void* names[], int maxCount)
+extern "C" int UNITY_INTERFACE_EXPORT RetrieveDeviceNames(void* names[], int maxCount)
 {
     enumerator_.ScanDeviceNames();
     return enumerator_.CopyStringPointers(names, maxCount);
 }
 
-extern "C" int UNITY_INTERFACE_EXPORT
-    RetrieveOutputFormatNames(int deviceIndex, void* names[], int maxCount)
+extern "C" int UNITY_INTERFACE_EXPORT RetrieveOutputFormatNames(int deviceIndex, void* names[], int maxCount)
 {
     enumerator_.ScanOutputFormatNames(deviceIndex);
     return enumerator_.CopyStringPointers(names, maxCount);
@@ -113,11 +111,11 @@ extern "C" int UNITY_INTERFACE_EXPORT GetReceiverFrameHeight(void* receiver)
     return std::get<1>(instance->GetFrameDimensions());
 }
 
-extern "C" float UNITY_INTERFACE_EXPORT GetReceiverFrameRate(void* receiver)
+extern "C" std::int64_t UNITY_INTERFACE_EXPORT GetReceiverFrameDuration(void* receiver)
 {
     auto instance = reinterpret_cast<klinker::Receiver*>(receiver);
     if (instance == nullptr) return 0;
-    return instance->GetFrameRate();
+    return instance->GetFrameDuration();
 }
 
 extern "C" int UNITY_INTERFACE_EXPORT IsReceiverProgressive(void* receiver)
@@ -206,11 +204,11 @@ extern "C" int UNITY_INTERFACE_EXPORT GetSenderFrameHeight(void* sender)
     return std::get<1>(instance->GetFrameDimensions());
 }
 
-extern "C" float UNITY_INTERFACE_EXPORT GetSenderFrameRate(void* sender)
+extern "C" std::int64_t UNITY_INTERFACE_EXPORT GetSenderFrameDuration(void* sender)
 {
     if (sender == nullptr) return 0;
     auto instance = reinterpret_cast<klinker::Sender*>(sender);
-    return instance->GetFrameRate();
+    return instance->GetFrameDuration();
 }
 
 extern "C" int UNITY_INTERFACE_EXPORT IsSenderProgressive(void* sender)

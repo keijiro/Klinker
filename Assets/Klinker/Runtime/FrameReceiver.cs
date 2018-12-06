@@ -60,7 +60,7 @@ namespace Klinker
 
         #region Input queue control
 
-        float _frameTime;
+        long _frameTime;
         bool _prerolled;
         int _fieldCount;
 
@@ -86,16 +86,14 @@ namespace Klinker
                 _dropDetector.Warn();
             }
 
-            // Calculate the duration of input frames.
-            var duration = 1 / _plugin.FrameRate;
-
-            // Advane the frame time.
-            _frameTime += Time.deltaTime;
+            // Advane the frame time. Use master clock when available.
+            _frameTime += FrameSender.master?.frameDuration ?? Util.DeltaTimeInFlicks;
 
             // Move to the even field.
             _fieldCount = 1;
 
             // Dequeue input frames that are in the previous frame duration.
+            var duration = _plugin.FrameDuration;
             while (_frameTime >= duration)
             {
                 // If there is no frame to dequeue, restart from prerolling.
