@@ -192,11 +192,11 @@ namespace Klinker
 
             // Master sender coroutine
 
-            // Set target frame rate (using captureFramerate).
-            // It also stops v-sync.
+            // Set target frame rate (using captureFramerate) and stop v-sync.
             var fps = Mathf.CeilToInt(_plugin.FrameRate);
             if (!_plugin.IsProgressive) fps *= 2;
             Time.captureFramerate = fps;
+            QualitySettings.vSyncCount = 0;
 
             // Wait for sender completion every end-of-frame.
             var qlen = (ulong)_queueLength;
