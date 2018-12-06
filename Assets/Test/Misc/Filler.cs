@@ -10,17 +10,19 @@ namespace Klinker.Test
         [SerializeField, HideInInspector] Shader _shader = null;
 
         Material _material;
+        int _frameCount;
 
         void Update()
         {
-            _text.text = Time.frameCount.ToString("000000");
+            if (!Input.GetKey(KeyCode.Space)) _frameCount++;
+            _text.text = _frameCount.ToString("000000");
         }
 
         void OnRenderImage(RenderTexture source, RenderTexture destination)
         {
             if (_material == null) _material = new Material(_shader);
 
-            _material.SetInt("_FrameCount", Time.frameCount);
+            _material.SetInt("_FrameCount", _frameCount);
 
             if (_flash)
                 _material.EnableKeyword("ENABLE_FLASH");
