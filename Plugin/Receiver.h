@@ -91,13 +91,22 @@ namespace klinker
         void DequeueFrame()
         {
             std::lock_guard<std::mutex> lock(mutex_);
-            frameQueue_.pop();
+            if (!frameQueue_.empty()) frameQueue_.pop();
         }
 
         const uint8_t* LockOldestFrameData()
         {
             mutex_.lock();
-            return frameQueue_.front().data();
+
+            if (!frameQueue_.empty())
+            {
+                return frameQueue_.front().data();
+            }
+            else
+            {
+                mutex_.unlock(); // Unlock before fail return
+                return nullptr;
+            }
         }
 
         void UnlockOldestFrameData()

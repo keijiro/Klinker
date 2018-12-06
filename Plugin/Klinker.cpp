@@ -32,12 +32,12 @@ namespace
         else if (event == kUnityRenderingExtEventUpdateTextureEndV2)
         {
             // UpdateTextureEnd
-            // Just unlock the frame data.
             auto params = reinterpret_cast<UnityRenderingExtTextureUpdateParamsV2*>(data);
             auto receiver = receiverMap_[params->userData];
             if (receiver == nullptr) return;
 
-            receiver->UnlockOldestFrameData();
+            // Unlock the frame data if it seems to be locked.
+            if (params->texData != nullptr) receiver->UnlockOldestFrameData();
         }
     }
 }

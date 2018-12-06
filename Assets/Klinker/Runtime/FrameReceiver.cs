@@ -99,7 +99,7 @@ namespace Klinker
             while (_frameTime >= duration)
             {
                 // If there is no frame to dequeue, restart from prerolling.
-                if (_plugin.QueuedFrameCount == 1)
+                if (_plugin.QueuedFrameCount < 2)
                 {
                     _prerolled = false;
                     _dropDetector.Warn();
