@@ -66,6 +66,11 @@ namespace Klinker
             return CountReceiverQueuedFrames(_plugin);
         } }
 
+        public long Timecode { get {
+            var packed = GetReceiverTimecode(_plugin);
+            return Util.PackedTimecodeToFlicks(packed, FrameDuration);
+        } }
+
         public IntPtr TextureUpdateCallback { get {
             return GetTextureUpdateCallback();
         } }
@@ -133,6 +138,9 @@ namespace Klinker
 
         [DllImport("Klinker")]
         static extern void DequeueReceiverFrame(IntPtr receiver);
+
+        [DllImport("Klinker")]
+        static extern uint GetReceiverTimecode(IntPtr receiver);
 
         [DllImport("Klinker")]
         static extern IntPtr GetTextureUpdateCallback();

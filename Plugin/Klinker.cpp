@@ -149,7 +149,14 @@ extern "C" void UNITY_INTERFACE_EXPORT DequeueReceiverFrame(void* receiver)
     instance->DequeueFrame();
 }
 
-extern "C" const int UNITY_INTERFACE_EXPORT CountDroppedReceiverFrames(void* receiver)
+extern "C" unsigned int UNITY_INTERFACE_EXPORT GetReceiverTimecode(void* receiver)
+{
+    auto instance = reinterpret_cast<klinker::Receiver*>(receiver);
+    if (instance == nullptr) return 0xffffffffL;
+    return instance->GetOldestTimecode();
+}
+
+extern "C" int UNITY_INTERFACE_EXPORT CountDroppedReceiverFrames(void* receiver)
 {
     if (receiver == nullptr) return 0;
     auto instance = reinterpret_cast<klinker::Receiver*>(receiver);

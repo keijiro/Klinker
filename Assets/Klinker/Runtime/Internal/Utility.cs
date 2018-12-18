@@ -15,6 +15,16 @@ namespace Klinker
             return (long)((double)Time.deltaTime * FlicksPerSecond);
         } }
 
+        public static long PackedTimecodeToFlicks(uint timecode, long frameDuration)
+        {
+            if (timecode == 0xffffffffU) return 0;
+            var h = (timecode >> 24) & 0xffU;
+            var m = (timecode >> 16) & 0xffU;
+            var s = (timecode >>  8) & 0xffU;
+            var f = (timecode >>  0) & 0xffU;
+            return ((h * 60 + m) * 60 + s) * FlicksPerSecond + f * frameDuration;
+        }
+
         public static void Destroy(Object obj)
         {
             if (obj == null) return;

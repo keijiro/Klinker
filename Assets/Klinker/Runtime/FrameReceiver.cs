@@ -52,6 +52,8 @@ namespace Klinker
             return _targetTexture != null ? _targetTexture : _receivedTexture;
         } }
 
+        public long timecodeFlicks { get { return _plugin.Timecode; } }
+
         static byte[] _nameBuffer = new byte[256];
 
         public string formatName { get { return _plugin?.FormatName ?? "-"; } }

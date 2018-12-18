@@ -100,7 +100,7 @@ namespace klinker
 
             if (!frameQueue_.empty())
             {
-                return frameQueue_.front().data();
+                return frameQueue_.front().image_.data();
             }
             else
             {
@@ -112,6 +112,15 @@ namespace klinker
         void UnlockOldestFrameData()
         {
             mutex_.unlock();
+        }
+
+        std::uint32_t GetOldestTimecode() const
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            if (!frameQueue_.empty())
+                return frameQueue_.front().timecode_;
+            else
+                return 0xffffffffU;
         }
 
         #pragma endregion
@@ -243,9 +252,20 @@ namespace klinker
             std::uint8_t* source;
             ShouldOK(videoFrame->GetBytes(reinterpret_cast<void**>(&source)));
 
+            // Retrieve and re-pack the timecode.
+            std::uint32_t packedTimecode = 0xffffffffU;
+            IDeckLinkTimecode* timecode;
+            if (videoFrame->GetTimecode(bmdTimecodeRP188Any, &timecode) == S_OK)
+            {
+                std::uint8_t h, m, s, f;
+                timecode->GetComponents(&h, &m, &s, &f);
+                timecode->Release();
+                packedTimecode = (h << 24) | (m << 16) | (s << 8) | f;
+            }
+
             // Allocate and push a new frame to the frame queue.
             std::lock_guard<std::mutex> lock(mutex_);
-            frameQueue_.emplace(source, source + size);
+            frameQueue_.emplace(packedTimecode, source, size);
 
             return S_OK;
         }
@@ -253,6 +273,18 @@ namespace klinker
         #pragma endregion
 
     private:
+
+        #pragma region Internal frame data structure
+
+        struct FrameData
+        {
+            std::uint32_t timecode_;
+            std::vector<uint8_t> image_;
+            FrameData(std::uint32_t timecode, std::uint8_t* source, std::size_t size)
+                : timecode_(timecode), image_(source, source + size) {}
+        };
+
+        #pragma endregion
 
         #pragma region Private members
 
@@ -262,7 +294,7 @@ namespace klinker
         IDeckLinkInput* input_ = nullptr;
         IDeckLinkDisplayMode* displayMode_ = nullptr;
 
-        std::queue<std::vector<uint8_t>> frameQueue_;
+        std::queue<FrameData> frameQueue_;
         mutable std::mutex mutex_;
 
         static const std::size_t maxQueueLength_ = 8;
