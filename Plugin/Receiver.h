@@ -252,23 +252,12 @@ namespace klinker
             std::uint8_t* source;
             ShouldOK(videoFrame->GetBytes(reinterpret_cast<void**>(&source)));
 
-            // Retrieve and re-pack the timecode.
-            IDeckLinkTimecode* timecode;
-            std::uint32_t bcd = 0xffffffffU;
-            if (videoFrame->GetTimecode(bmdTimecodeRP188VITC1, &timecode) == S_OK)
-            {
-                bcd = timecode->GetBCD();
-                timecode->Release();
-            }
-            else if (videoFrame->GetTimecode(bmdTimecodeRP188VITC2, &timecode) == S_OK)
-            {
-                bcd = timecode->GetBCD() | 0x80; // odd field flag
-                timecode->Release();
-            }
+            // Retrieve the timecode.
+            auto timecode = GetFrameTimecode(videoFrame);
 
             // Allocate and push a new frame to the frame queue.
             std::lock_guard<std::mutex> lock(mutex_);
-            frameQueue_.emplace(bcd, source, size);
+            frameQueue_.emplace(timecode, source, size);
 
             return S_OK;
         }
@@ -302,6 +291,27 @@ namespace klinker
 
         static const std::size_t maxQueueLength_ = 8;
         int dropCount_ = 0;
+
+        static std::uint32_t GetFrameTimecode(IDeckLinkVideoInputFrame* frame)
+        {
+            IDeckLinkTimecode* timecode = nullptr;
+            std::uint32_t bcdTime;
+
+            if (frame->GetTimecode(bmdTimecodeRP188VITC1, &timecode) == S_OK)
+                bcdTime = 0;
+            else if (frame->GetTimecode(bmdTimecodeRP188VITC2, &timecode) == S_OK)
+                bcdTime = 0x80U; // Even field flag
+            else
+                return 0xffffffffU;
+
+            bcdTime |= timecode->GetBCD();
+
+            // Drop frame flag
+            if (timecode->GetFlags() & bmdTimecodeIsDropFrame) bcdTime |= 0x40;
+
+            timecode->Release();
+            return bcdTime;
+        }
 
         bool InitializeInput(int deviceIndex, int formatIndex)
         {

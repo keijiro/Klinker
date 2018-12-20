@@ -24,7 +24,8 @@ namespace Klinker
             var minute = (timecode >> 16) & 0xffU;
             var second = (timecode >>  8) & 0xffU;
             var field  = (timecode >>  7) & 1U;
-            var frame  = (timecode >>  0) & 0x7fU;
+            var drop   = (timecode >>  6) & 1U;
+            var frame  = (timecode >>  0) & 0x3fU;
 
             // BCD -> integer value
             hour   = (hour   >> 4) * 10U + (hour   & 0xf);
@@ -35,11 +36,20 @@ namespace Klinker
             // Determine if we should count the field flag in.
             var fielding = frameDuration <= FlicksPerSecond / 50;
 
-            // Flicks conversion
-            var t1 = ((hour * 60 + minute) * 60 + second) * FlicksPerSecond;
-            var t2 = (frame * (fielding ? 2 : 1) + field) * frameDuration;
+            // H:M:S to seconds
+            long total = (hour * 60 + minute) * 60 + second;
 
-            return t1 + t2;
+            // Seconds to flicks
+            var fps = (FlicksPerSecond + frameDuration - 1) / frameDuration;
+            total *= fps * frameDuration;
+
+            // Drop frame conversion
+            if (drop != 0) total -= (minute - minute / 10) * 4 * frameDuration;
+
+            // Frame count addition
+            total += (frame * (fielding ? 2 : 1) + field) * frameDuration;
+
+            return total;
         }
 
         public static void Destroy(Object obj)
