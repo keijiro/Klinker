@@ -68,7 +68,7 @@ namespace Klinker
 
         public long Timecode { get {
             var packed = GetReceiverTimecode(_plugin);
-            return Util.PackedTimecodeToFlicks(packed, FrameDuration);
+            return Util.BcdTimecodeToFlicks(packed, FrameDuration);
         } }
 
         public IntPtr TextureUpdateCallback { get {

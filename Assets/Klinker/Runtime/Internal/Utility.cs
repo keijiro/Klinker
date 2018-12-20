@@ -15,14 +15,31 @@ namespace Klinker
             return (long)((double)Time.deltaTime * FlicksPerSecond);
         } }
 
-        public static long PackedTimecodeToFlicks(uint timecode, long frameDuration)
+        public static long BcdTimecodeToFlicks(uint timecode, long frameDuration)
         {
             if (timecode == 0xffffffffU) return 0;
-            var h = (timecode >> 24) & 0xffU;
-            var m = (timecode >> 16) & 0xffU;
-            var s = (timecode >>  8) & 0xffU;
-            var f = (timecode >>  0) & 0xffU;
-            return ((h * 60 + m) * 60 + s) * FlicksPerSecond + f * frameDuration;
+
+            // Unpacked elements
+            var hour   = (timecode >> 24) & 0xffU;
+            var minute = (timecode >> 16) & 0xffU;
+            var second = (timecode >>  8) & 0xffU;
+            var field  = (timecode >>  7) & 1U;
+            var frame  = (timecode >>  0) & 0x7fU;
+
+            // BCD -> integer value
+            hour   = (hour   >> 4) * 10U + (hour   & 0xf);
+            minute = (minute >> 4) * 10U + (minute & 0xf);
+            second = (second >> 4) * 10U + (second & 0xf);
+            frame  = (frame  >> 4) * 10U + (frame  & 0xf);
+
+            // Determine if we should count the field flag in.
+            var fielding = frameDuration <= FlicksPerSecond / 50;
+
+            // Flicks conversion
+            var t1 = ((hour * 60 + minute) * 60 + second) * FlicksPerSecond;
+            var t2 = (frame * (fielding ? 2 : 1) + field) * frameDuration;
+
+            return t1 + t2;
         }
 
         public static void Destroy(Object obj)

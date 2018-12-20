@@ -54,6 +54,10 @@ namespace Klinker
 
         public long timecodeFlicks { get { return _plugin.Timecode; } }
 
+        public double timecodeSeconds { get {
+            return (double)timecodeFlicks / Util.FlicksPerSecond;
+        } }
+
         static byte[] _nameBuffer = new byte[256];
 
         public string formatName { get { return _plugin?.FormatName ?? "-"; } }

@@ -253,19 +253,22 @@ namespace klinker
             ShouldOK(videoFrame->GetBytes(reinterpret_cast<void**>(&source)));
 
             // Retrieve and re-pack the timecode.
-            std::uint32_t packedTimecode = 0xffffffffU;
             IDeckLinkTimecode* timecode;
-            if (videoFrame->GetTimecode(bmdTimecodeRP188Any, &timecode) == S_OK)
+            std::uint32_t bcd = 0xffffffffU;
+            if (videoFrame->GetTimecode(bmdTimecodeRP188VITC1, &timecode) == S_OK)
             {
-                std::uint8_t h, m, s, f;
-                timecode->GetComponents(&h, &m, &s, &f);
+                bcd = timecode->GetBCD();
                 timecode->Release();
-                packedTimecode = (h << 24) | (m << 16) | (s << 8) | f;
+            }
+            else if (videoFrame->GetTimecode(bmdTimecodeRP188VITC2, &timecode) == S_OK)
+            {
+                bcd = timecode->GetBCD() | 0x80; // odd field flag
+                timecode->Release();
             }
 
             // Allocate and push a new frame to the frame queue.
             std::lock_guard<std::mutex> lock(mutex_);
-            frameQueue_.emplace(packedTimecode, source, size);
+            frameQueue_.emplace(bcd, source, size);
 
             return S_OK;
         }
