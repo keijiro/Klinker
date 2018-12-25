@@ -80,13 +80,14 @@ namespace Klinker
 
         #region Public methods
 
-        public unsafe void FeedFrame<T>(NativeArray<T> data) where T : struct
+        public unsafe void FeedFrame<T>(NativeArray<T> data, long timecode) where T : struct
         {
-            FeedFrameToSender(_plugin, (IntPtr)data.GetUnsafeReadOnlyPtr());
+            var bcd = Util.FlicksToBcdTimecode(timecode, FrameDuration);
+            FeedFrameToSender(_plugin, (IntPtr)data.GetUnsafeReadOnlyPtr(), bcd);
             CheckError();
         }
 
-        public void WaitCompletion(ulong frameNumber)
+        public void WaitCompletion(long frameNumber)
         {
             WaitSenderCompletion(_plugin, frameNumber);
             CheckError();
@@ -137,10 +138,10 @@ namespace Klinker
         static extern int IsSenderReferenceLocked(IntPtr sender);
 
         [DllImport("Klinker")]
-        static extern void FeedFrameToSender(IntPtr sender, IntPtr frameData);
+        static extern void FeedFrameToSender(IntPtr sender, IntPtr frameData, uint timecode);
 
         [DllImport("Klinker")]
-        static extern void WaitSenderCompletion(IntPtr sender, ulong frameNumber);
+        static extern void WaitSenderCompletion(IntPtr sender, long frameNumber);
 
         [DllImport("Klinker")]
         static extern int CountDroppedSenderFrames(IntPtr sender);

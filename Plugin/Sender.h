@@ -144,7 +144,7 @@ namespace klinker
             }
         }
 
-        void FeedFrame(void* frameData)
+        void FeedFrame(void* frameData, unsigned int timecode)
         {
             assert(output_ != nullptr);
             assert(displayMode_ != nullptr);
@@ -153,6 +153,7 @@ namespace klinker
             // Allocate a new frame for the fed data.
             auto newFrame = AllocateFrame();
             CopyFrameData(newFrame, frameData);
+            SetTimecode(newFrame, timecode);
 
             if (IsAsyncMode())
             {
@@ -179,7 +180,7 @@ namespace klinker
             }
         }
 
-        void WaitFrameCompletion(std::uint64_t frameNumber)
+        void WaitFrameCompletion(std::int64_t frameNumber)
         {
             // Wait for completion of a specified frame.
             std::unique_lock<std::mutex> lock(mutex_);
@@ -286,8 +287,8 @@ namespace klinker
 
         struct
         {
-            std::uint64_t queued = 0;
-            std::uint64_t completed = 0;
+            std::int64_t queued = 0;
+            std::int64_t completed = 0;
         }
         counters_;
 
@@ -317,6 +318,24 @@ namespace klinker
             void* pointer = nullptr;
             ShouldOK(frame->GetBytes(&pointer));
             std::memcpy(pointer, data, (std::size_t)2 * width * height);
+        }
+
+        void SetTimecode(IDeckLinkMutableVideoFrame* frame, unsigned int timecode) const
+        {
+            // Extract time components from a given BCD value.
+            auto h = ((timecode >> 28) & 0x3U) * 10 + ((timecode >> 24) & 0xfU);
+            auto m = ((timecode >> 20) & 0x7U) * 10 + ((timecode >> 16) & 0xfU);
+            auto s = ((timecode >> 12) & 0x7U) * 10 + ((timecode >>  8) & 0xfU);
+            auto f = ((timecode >>  4) & 0x3U) * 10 + ((timecode      ) & 0xfU);
+
+            auto even = (timecode & 0x80U) != 0; // Even field flag
+            auto drop = (timecode * 0x40U) != 0; // Drop frame timecode flag
+
+            frame->SetTimecodeFromComponents(
+                even ? bmdTimecodeRP188VITC2 : bmdTimecodeRP188VITC1,
+                h, m, s, f,
+                drop ? bmdTimecodeIsDropFrame : bmdTimecodeFlagDefault
+            );
         }
 
         void ScheduleFrame(IDeckLinkMutableVideoFrame* frame)
@@ -405,7 +424,7 @@ namespace klinker
 
             // Enable the video output.
             res = output_->EnableVideoOutput(
-                displayMode_->GetDisplayMode(), bmdVideoOutputFlagDefault
+                displayMode_->GetDisplayMode(), bmdVideoOutputRP188
             );
 
             if (res != S_OK)

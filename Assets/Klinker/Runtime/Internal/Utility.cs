@@ -52,6 +52,43 @@ namespace Klinker
             return total;
         }
 
+        public static uint FlicksToBcdTimecode(long flicks, long frameDuration)
+        {
+            if (flicks <= 0) return 0;
+
+            var drop = false;
+
+            var t_div_sec = flicks / FlicksPerSecond;
+            var t_mod_sec = flicks - FlicksPerSecond * t_div_sec;
+
+            // Time components
+            var hour   = (uint)(t_div_sec / 3600 % 24);
+            var minute = (uint)(t_div_sec /   60 % 60);
+            var second = (uint)(t_div_sec        % 60);
+
+            // Frame/field
+            var frame = (uint)(t_mod_sec / frameDuration);
+            var field = 0U;
+
+            // Divide into fields when using a frame rate over 50Hz.
+            if (frameDuration <= FlicksPerSecond / 50)
+            {
+                field = frame & 1;
+                frame /= 2;
+            }
+
+            // Integer value -> BCD
+            var bcd = 0U;
+            bcd |= (hour   / 10) * 0x10000000U | (hour   % 10) * 0x1000000U;
+            bcd |= (minute / 10) * 0x00100000U | (minute % 10) * 0x0010000U;
+            bcd |= (second / 10) * 0x00001000U | (second % 10) * 0x0000100U;
+            bcd |= field         * 0x00000080U;
+            bcd |= drop          ? 0x00000040U : 0U;
+            bcd |= (frame  / 10) * 0x00000010U | (frame  % 10) * 0x0000001U;
+
+            return bcd;
+        }
+
         public static void Destroy(Object obj)
         {
             if (obj == null) return;

@@ -232,14 +232,14 @@ extern "C" int UNITY_INTERFACE_EXPORT IsSenderReferenceLocked(void* sender)
     return instance->IsReferenceLocked() ? 1 : 0;
 }
 
-extern "C" void UNITY_INTERFACE_EXPORT FeedFrameToSender(void* sender, void* frameData)
+extern "C" void UNITY_INTERFACE_EXPORT FeedFrameToSender(void* sender, void* frameData, unsigned int timecode)
 {
     if (sender == nullptr) return;
     auto instance = reinterpret_cast<klinker::Sender*>(sender);
-    instance->FeedFrame(frameData);
+    instance->FeedFrame(frameData, timecode);
 }
 
-extern "C" void UNITY_INTERFACE_EXPORT WaitSenderCompletion(void* sender, std::uint64_t frameNumber)
+extern "C" void UNITY_INTERFACE_EXPORT WaitSenderCompletion(void* sender, std::int64_t frameNumber)
 {
     if (sender == nullptr) return;
     auto instance = reinterpret_cast<klinker::Sender*>(sender);

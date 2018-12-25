@@ -33,6 +33,18 @@ namespace Klinker
             return _plugin?.FrameDuration ?? 0;
         } }
 
+        public long timecodeFlicks { get {
+            return _frameCount * _plugin.FrameDuration;
+        } }
+
+        public double timecodeSeconds { get {
+            return (double)timecodeFlicks / Util.FlicksPerSecond;
+        } }
+
+        public int timecodeFrames { get {
+            return (int)_frameCount;
+        } }
+
         public bool isReferenceLocked { get {
             return _plugin?.IsReferenceLocked ?? false;
         } }
@@ -137,7 +149,7 @@ namespace Klinker
                 }
 
                 // Feed the frame data to the plugin.
-                _plugin.FeedFrame(frame.GetData<byte>());
+                _plugin.FeedFrame(frame.GetData<byte>(), timecodeFlicks);
                 _frameCount++;
 
                 _frameQueue.Dequeue();
@@ -151,7 +163,7 @@ namespace Klinker
         SenderPlugin _plugin;
         RenderTexture _targetRT;
         GameObject _blitter;
-        ulong _frameCount;
+        long _frameCount;
         DropDetector _dropDetector;
 
         #endregion
@@ -218,7 +230,7 @@ namespace Klinker
             QualitySettings.vSyncCount = 0;
 
             // Wait for sender completion every end-of-frame.
-            var qlen = (ulong)_queueLength;
+            var qlen = _queueLength;
             for (var eof = new WaitForEndOfFrame();;)
             {
                 yield return eof;
