@@ -57,92 +57,57 @@ namespace Klinker
         {
             if (flicks <= 0) return 0;
 
-            var drop = FlicksPerSecond % frameDuration != 0;
+            var drop = FlicksPerSecond % frameDuration != 0 ? 4L : 0L;
 
-            if (drop)
+            // Frames per second (ceiled)
+            var fps = (FlicksPerSecond + frameDuration - 1) / frameDuration;
+
+            // Frames per 10 minute
+            var fpm10 = fps * 60 * 10 - drop * 9;
+
+            // Convert the input value to a frame count.
+            var frames = flicks / frameDuration;
+
+            // Hours
+            var hours = frames / (fpm10 * 6);
+            frames -= hours * fpm10 * 6;
+
+            // 10 minutes
+            var min10s = frames / fpm10;
+            frames -= min10s * fpm10;
+
+            // Minutes
+            var min01s = (frames - drop) / (fps * 60 - drop);
+            frames -= min01s * (fps * 60 - drop) + (min01s > 0 ? drop : 0);
+
+            // Seconds
+            var seconds = frames / fps;
+            frames -= seconds * fps;
+
+            // 24 hours wrapping around
+            hours %= 24;
+
+            // Drop frame offset
+            if (min01s > 0) frames += drop;
+
+            // Divide into fields when using a frame rate over 50Hz.
+            var field = 0L;
+            if (frameDuration <= FlicksPerSecond / 50)
             {
-                // Frames per second (ceiled)
-                var fps = (FlicksPerSecond + frameDuration - 1) / frameDuration;
-
-                // Frames per 10 minute
-                var fpm10 = fps * 60 * 10 - 4 * 9;
-
-                // Convert the input value to a frame count.
-                var frames = flicks / frameDuration;
-
-                // Hours
-                var hours = frames / (fpm10 * 6);
-                frames -= hours * fpm10 * 6;
-
-                // 10 minutes
-                var min10s = frames / fpm10;
-                frames -= min10s * fpm10;
-
-                // Minutes
-                var min01s = (frames - 4) / (fps * 60 - 4);
-                frames -= min01s * (fps * 60 - 4) + (min01s > 0 ? 4 : 0);
-
-                // Seconds
-                var seconds = frames / fps;
-                frames -= seconds * fps;
-
-                // 24 hours wrapping around
-                hours %= 24;
-
-                // Drop frame offset
-                if (min01s > 0) frames += 4;
-
-                // Divide into fields when using a frame rate over 50Hz.
-                var field = 0L;
-                if (frameDuration <= FlicksPerSecond / 50)
-                {
-                    field = frames & 1;
-                    frames /= 2;
-                }
-
-                // Integer value -> BCD
-                var bcd = 0L;
-                bcd += (hours   / 10) * 0x10000000 + (hours   % 10) * 0x1000000;
-                bcd += (min10s      ) * 0x00100000 + (min01s      ) * 0x0010000;
-                bcd += (seconds / 10) * 0x00001000 + (seconds % 10) * 0x0000100;
-                bcd += field          * 0x00000080;
-                bcd += drop           ? 0x00000040 : 0;
-                bcd += (frames  / 10) * 0x00000010 + (frames  % 10) * 0x0000001;
-
-                return (uint)bcd;
+                field = frames & 1;
+                frames /= 2;
             }
-            else
-            {
-                var t_div_sec = flicks / FlicksPerSecond;
-                var t_mod_sec = flicks - FlicksPerSecond * t_div_sec;
 
-                // Time components
-                var hour   = (uint)(t_div_sec / 3600 % 24);
-                var minute = (uint)(t_div_sec /   60 % 60);
-                var second = (uint)(t_div_sec        % 60);
-                
-                // Frame/field
-                var frame = (uint)(t_mod_sec / frameDuration);
-                var field = 0U; 
+            // Integer value -> BCD
+            var bcd = 0L;
+            bcd += (hours   / 10) * 0x10000000 + (hours   % 10) * 0x1000000;
+            bcd += (min10s      ) * 0x00100000 + (min01s      ) * 0x0010000;
+            bcd += (seconds / 10) * 0x00001000 + (seconds % 10) * 0x0000100;
+            bcd += field          * 0x00000080;
+            bcd += drop > 0       ? 0x00000040 : 0;
+            bcd += (frames  / 10) * 0x00000010 + (frames  % 10) * 0x0000001;
 
-                // Divide into fields when using a frame rate over 50Hz.
-                if (frameDuration <= FlicksPerSecond / 50)
-                {
-                    field = frame & 1;
-                    frame /= 2;
-                }
-
-                // Integer value -> BCD
-                var bcd = 0U;
-                bcd |= (hour   / 10) * 0x10000000U | (hour   % 10) * 0x1000000U;
-                bcd |= (minute / 10) * 0x00100000U | (minute % 10) * 0x0010000U;
-                bcd |= (second / 10) * 0x00001000U | (second % 10) * 0x0000100U;
-                bcd |= field         * 0x00000080U;
-                bcd |= drop          ? 0x00000040U : 0U;
-                bcd |= (frame  / 10) * 0x00000010U | (frame  % 10) * 0x0000001U;
-
-                return bcd;
-            }
+            return (uint)bcd;
         }
 
         public static void Destroy(Object obj)
