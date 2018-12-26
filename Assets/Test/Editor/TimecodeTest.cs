@@ -4,18 +4,17 @@ namespace Klinker.Tests
 {
     public static class TimecodeTest
     {
-        [Test]
-        public static void BcdConversion()
+        [TestCase(1, 60)]        // 60 Hz
+        [TestCase(1001, 60000)]  // 59.94 Hz
+        public static void BcdConversion(int mul, int div)
         {
-            var frameDuration = Util.FlicksPerSecond * 1001 / 60000;
-//            var frameDuration = Util.FlicksPerSecond / 60;
-
+            var frameDuration = Util.FlicksPerSecond * mul / div;
             for (long i = 0; i < 2 * 60 * 60 * 60; i += 13)
             {
                 var t1 = i * frameDuration;
                 var bcd = Util.FlicksToBcdTimecode(t1, frameDuration);
                 var t2 = Util.BcdTimecodeToFlicks(bcd, frameDuration);
-                Assert.AreEqual(t1, t2, string.Format("{0:X}/{1:X}, Frame = {2}, BCD = {3:X}", t1, t2, i, bcd));
+                Assert.AreEqual(t1, t2, "Frame = {0}, BCD = {1:X}", i, bcd);
             }
         }
     }

@@ -57,35 +57,43 @@ namespace Klinker
         {
             if (flicks <= 0) return 0;
 
-            var drop = true;
+            var drop = FlicksPerSecond % frameDuration != 0;
 
             if (drop)
             {
+                // Frames per second (ceiled)
                 var fps = (FlicksPerSecond + frameDuration - 1) / frameDuration;
+
+                // Frames per 10 minute
                 var fpm10 = fps * 60 * 10 - 4 * 9;
 
+                // Convert the input value to a frame count.
                 var frames = flicks / frameDuration;
 
-                var hours  = frames / (fpm10 * 6);
+                // Hours
+                var hours = frames / (fpm10 * 6);
                 frames -= hours * fpm10 * 6;
 
+                // 10 minutes
                 var min10s = frames / fpm10;
                 frames -= min10s * fpm10;
 
-                var min01s = frames < fps * 60 ? 0 : (frames - 4) / (fps * 60 - 4);
-                if (min01s > 0) frames -= fps * 60;
-                if (min01s > 1) frames -= (min01s - 1) * (fps * 60 - 4);
+                // Minutes
+                var min01s = (frames - 4) / (fps * 60 - 4);
+                frames -= min01s * (fps * 60 - 4) + (min01s > 0 ? 4 : 0);
 
+                // Seconds
                 var seconds = frames / fps;
                 frames -= seconds * fps;
 
-                if (min01s > 0) frames += 4;
-
+                // 24 hours wrapping around
                 hours %= 24;
 
-                var field = (long)0U;
+                // Drop frame offset
+                if (min01s > 0) frames += 4;
 
                 // Divide into fields when using a frame rate over 50Hz.
+                var field = 0L;
                 if (frameDuration <= FlicksPerSecond / 50)
                 {
                     field = frames & 1;
@@ -93,13 +101,13 @@ namespace Klinker
                 }
 
                 // Integer value -> BCD
-                var bcd = (long)0U;
-                bcd |= (hours   / 10) * 0x10000000U | (hours   % 10) * 0x1000000U;
-                bcd |= (min10s      ) * 0x00100000U | (min01s      ) * 0x0010000U;
-                bcd |= (seconds / 10) * 0x00001000U | (seconds % 10) * 0x0000100U;
-                bcd |= field         * 0x00000080U;
-                bcd |= drop          ? 0x00000040U : 0U;
-                bcd |= (frames / 10) * 0x00000010U | (frames  % 10) * 0x0000001U;
+                var bcd = 0L;
+                bcd += (hours   / 10) * 0x10000000 + (hours   % 10) * 0x1000000;
+                bcd += (min10s      ) * 0x00100000 + (min01s      ) * 0x0010000;
+                bcd += (seconds / 10) * 0x00001000 + (seconds % 10) * 0x0000100;
+                bcd += field          * 0x00000080;
+                bcd += drop           ? 0x00000040 : 0;
+                bcd += (frames  / 10) * 0x00000010 + (frames  % 10) * 0x0000001;
 
                 return (uint)bcd;
             }
