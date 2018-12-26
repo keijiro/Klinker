@@ -7,8 +7,8 @@ namespace Klinker.Tests
         [Test]
         public static void BcdConversion()
         {
-//            var frameDuration = Util.FlicksPerSecond * 1001 / 60000;
-            var frameDuration = Util.FlicksPerSecond / 60;
+            var frameDuration = Util.FlicksPerSecond * 1001 / 60000;
+//            var frameDuration = Util.FlicksPerSecond / 60;
 
             for (long i = 0; i < 2 * 60 * 60 * 60; i += 13)
             {
