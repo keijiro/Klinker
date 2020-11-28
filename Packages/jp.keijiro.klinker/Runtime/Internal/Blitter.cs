@@ -40,7 +40,7 @@ namespace Klinker
         Mesh _mesh;
         Material _material;
 
-        void OnBeginCameraRendering(Camera camera)
+        void PreCull(Camera camera)
         {
             if (_mesh == null || camera != GetComponent<Camera>()) return;
 
@@ -48,6 +48,11 @@ namespace Klinker
                 _mesh, transform.localToWorldMatrix,
                 _material, UILayer, camera
             );
+        }
+
+        void BeginCameraRendering(ScriptableRenderContext context, Camera camera)
+        {
+            PreCull(camera);
         }
 
         #endregion
@@ -71,9 +76,9 @@ namespace Klinker
                 _material.SetTexture("_MainTex", _sourceTexture);
 
                 // Register the camera render callback.
-                UnityEngine.Experimental.Rendering.RenderPipeline.
-                    beginCameraRendering += OnBeginCameraRendering; // SRP
-                Camera.onPreCull += OnBeginCameraRendering; // Legacy
+                RenderPipelineManager.
+                    beginCameraRendering += BeginCameraRendering; // SRP
+                Camera.onPreCull += PreCull; // Legacy
             }
         }
 
@@ -82,9 +87,9 @@ namespace Klinker
             if (_mesh != null)
             {
                 // Unregister the camera render callback.
-                UnityEngine.Experimental.Rendering.RenderPipeline.
-                    beginCameraRendering -= OnBeginCameraRendering; // SRP
-                Camera.onPreCull -= OnBeginCameraRendering; // Legacy
+                RenderPipelineManager.
+                    beginCameraRendering -= BeginCameraRendering; // SRP
+                Camera.onPreCull -= PreCull; // Legacy
 
                 // Destroy temporary objects.
                 Destroy(_mesh);

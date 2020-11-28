@@ -1,0 +1,12 @@
+{
+    "author": "Keijiro Takahashi",
+    "dependencies": { },
+    "description": "DeckLink video capture/playback plugin for Unity",
+    "displayName": "Klinker",
+    "keywords": [ "unity" ],
+    "license": "Unlicense",
+    "name": "jp.keijiro.klinker",
+    "unity": "2019.4",
+    "unityRelease": "0f1",
+    "version": "0.1.0"
+}
