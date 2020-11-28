@@ -1,9 +1,9 @@
 {
     "name": "Klinker.Editor",
+    "rootNamespace": "",
     "references": [
-        "Klinker"
+        "Klinker.Runtime"
     ],
-    "optionalUnityReferences": [],
     "includePlatforms": [
         "Editor"
     ],
@@ -12,5 +12,7 @@
     "overrideReferences": false,
     "precompiledReferences": [],
     "autoReferenced": true,
-    "defineConstraints": []
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
 }
