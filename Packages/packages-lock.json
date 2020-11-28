@@ -39,6 +39,12 @@
         "com.unity.modules.imgui": "1.0.0"
       }
     },
+    "jp.keijiro.klinker": {
+      "version": "file:jp.keijiro.klinker",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {}
+    },
     "com.unity.modules.animation": {
       "version": "1.0.0",
       "depth": 1,
