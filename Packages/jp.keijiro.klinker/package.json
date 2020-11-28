@@ -1,7 +1,7 @@
 {
     "author": "Keijiro Takahashi",
     "dependencies": { },
-    "description": "DeckLink capture/playback plugin for Unity",
+    "description": "DeckLink video capture/playback plugin for Unity",
     "displayName": "Klinker",
     "keywords": [ "unity" ],
     "license": "Unlicense",
